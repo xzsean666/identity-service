@@ -133,6 +133,8 @@ The MVP must not include:
 - WeChat login.
 - SMS login.
 - Email code login.
+- SMS vendor adapters.
+- Email vendor adapters.
 - Local forgot-password email flow.
 - GitHub login.
 - Google login.
@@ -313,16 +315,23 @@ After explicit approval for Step 4:
 
 After the MVP, add modules in this order only when needed:
 
-1. Email verification code provider.
-2. SMS verification code provider.
-3. Generic OAuth2 provider login.
-4. GitHub provider.
-5. Google provider.
-6. Apple Sign In provider.
-7. WeChat provider.
-8. OAuth2/OIDC provider mode.
-9. Scope-based authorization.
-10. RBAC.
-11. Organizations and tenants.
-12. MFA and Passkey.
-13. Audit logging and risk controls.
+1. Delivery adapter contract.
+2. Email delivery adapter module.
+3. SMS delivery adapter module.
+4. Email verification code provider.
+5. SMS verification code provider.
+6. Generic OAuth2 provider login.
+7. GitHub provider.
+8. Google provider.
+9. Apple Sign In provider.
+10. WeChat provider.
+11. OAuth2/OIDC provider mode.
+12. Scope-based authorization.
+13. RBAC.
+14. Organizations and tenants.
+15. MFA and Passkey.
+16. Audit logging and risk controls.
+
+SMS and email vendors are delivery adapters, not identity providers.
+
+Changing a delivery vendor must not change authentication, identity binding, session, or token modules.

@@ -233,6 +233,63 @@ Supabase upstream methods may include:
 
 This service must not split those upstream methods into separate MVP providers.
 
+### Post-MVP SMS and Email Verification Providers
+
+SMS verification code login and email verification code login are post-MVP providers.
+
+They must be implemented as provider modules that depend on delivery adapters.
+
+The provider module owns:
+
+- Verification code creation.
+- Verification code validation.
+- Verification code expiration.
+- Verification code retry limits.
+- Verification code consumption.
+- Normalization into a verified phone or email identity.
+
+The provider module must not own:
+
+- Vendor-specific SMS APIs.
+- Vendor-specific email APIs.
+- Vendor credentials.
+- Vendor template formats.
+
+### Post-MVP Delivery Adapters
+
+Different SMS and email vendors must be implemented as delivery adapters.
+
+Examples of SMS delivery adapters:
+
+- Aliyun SMS.
+- Tencent Cloud SMS.
+- Twilio.
+- AWS SNS.
+
+Examples of email delivery adapters:
+
+- Resend.
+- SendGrid.
+- AWS SES.
+- SMTP.
+
+Delivery adapters must:
+
+- Send a message using one vendor.
+- Map vendor errors into internal delivery errors.
+- Keep vendor-specific templates and request formats isolated.
+- Read credentials only from centralized configuration or secret management.
+
+Delivery adapters must not:
+
+- Create internal users.
+- Validate verification codes.
+- Issue tokens.
+- Create sessions.
+- Decide identity binding.
+
+Configuration must allow selecting enabled SMS and email delivery adapters after the MVP.
+
 ### Account Binding
 
 The system must:

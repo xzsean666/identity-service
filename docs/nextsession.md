@@ -57,6 +57,7 @@ Core architecture decisions:
 - Use centralized feature toggles to enable or disable provider modules.
 - Start the MVP with local username/password registration, login, password change, and Supabase provider support.
 - Treat Supabase upstream email, phone, social, OAuth, and OIDC methods as one provider named `supabase`.
+- Treat post-MVP SMS and email vendors as delivery adapters, not identity providers.
 - Support JWT in the MVP.
 - Keep OAuth2 and OIDC provider mode post-MVP.
 - Add enterprise features incrementally instead of mixing them into the first version.
@@ -231,13 +232,16 @@ Second implementation increment:
 
 Only after MVP acceptance:
 
-1. Add email verification code provider.
-2. Add SMS verification code provider.
-3. Add OAuth2 generic provider adapter.
-4. Add GitHub provider.
-5. Add Google provider.
-6. Add account linking.
-7. Add provider contract tests.
+1. Add delivery adapter contract.
+2. Add email delivery adapter module.
+3. Add SMS delivery adapter module.
+4. Add email verification code provider.
+5. Add SMS verification code provider.
+6. Add OAuth2 generic provider adapter.
+7. Add GitHub provider.
+8. Add Google provider.
+9. Add account linking.
+10. Add provider contract tests.
 
 ### Post-MVP OAuth2/OIDC Increment
 
@@ -316,6 +320,16 @@ Refresh token rotation, reuse detection, and session revocation require precise 
 Impact:
 
 - Must be specified and tested carefully before production use.
+
+### SMS and Email Delivery Vendors
+
+SMS and email providers differ by vendor.
+
+Impact:
+
+- Add delivery adapters after the MVP.
+- Keep vendor-specific APIs, credentials, templates, and errors outside authentication provider modules.
+- Do not make SMS or email vendors identity providers.
 
 ## Git Commits Created
 

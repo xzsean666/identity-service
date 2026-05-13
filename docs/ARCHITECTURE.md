@@ -89,6 +89,7 @@ identity-service/
       common/
       local_password/
       supabase/
+      verification_code/
       wechat/
       sms/
       email/
@@ -96,6 +97,9 @@ identity-service/
       github/
       google/
       apple/
+    delivery_adapters/
+      sms/
+      email/
     infrastructure/
       database/
       cache/
@@ -265,6 +269,75 @@ Design rule:
 - Plaintext passwords must never be stored, logged, emitted in events, or passed beyond the local password provider boundary.
 - Password hashes must use a modern password hashing algorithm selected in the security policy.
 - Password change must verify the current password before replacing the stored password hash.
+
+### Post-MVP Verification Code Provider Module
+
+Purpose:
+
+- Provide phone verification code login and email verification code login after the MVP.
+- Own verification code lifecycle, including creation, validation, expiration, retry limits, and consumption.
+- Normalize verified phone or email identities into the provider adapter output shape.
+
+Input:
+
+- Phone number or email address.
+- Verification code request.
+- Verification code submit request.
+- Delivery channel selection from centralized configuration.
+
+Output:
+
+- Verification code challenge result.
+- Verification code validation result.
+- Normalized external identity for `sms` or `email`.
+- Explicit verification error.
+
+Dependencies:
+
+- Verification code repository.
+- Delivery adapter contract.
+- Security policy module.
+- Rate-limit module when introduced.
+
+Design rule:
+
+- Verification code providers must not call SMS or email vendors directly.
+- Delivery must go through delivery adapters.
+- Verification code login is post-MVP and must not be added to the MVP implementation.
+
+### Post-MVP Delivery Adapter Modules
+
+Purpose:
+
+- Isolate vendor-specific SMS and email delivery behavior.
+- Allow different SMS and email vendors to be enabled through configuration.
+- Keep provider login logic independent from vendor APIs, signatures, templates, throttling behavior, and error formats.
+
+Input:
+
+- Delivery request.
+- Destination phone number or email address.
+- Template identifier.
+- Template variables.
+- Vendor configuration.
+
+Output:
+
+- Delivery accepted result.
+- Delivery failed result.
+- Vendor error mapped to internal delivery error.
+
+Dependencies:
+
+- External SMS vendor APIs.
+- External email vendor APIs.
+- Centralized provider and delivery configuration.
+
+Design rule:
+
+- SMS vendors and email vendors are delivery adapters, not identity providers.
+- Changing SMS or email vendors must not change authentication, identity binding, session, or token modules.
+- Vendor credentials must be loaded only through centralized configuration or secret management.
 
 ### Identity Binding Module
 

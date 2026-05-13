@@ -143,13 +143,16 @@ Fixed MVP identity implementation order:
 
 Post-MVP provider order:
 
-1. Email verification code
-2. SMS verification code
-3. OAuth2 generic provider
-4. GitHub
-5. Google
-6. Apple Sign In
-7. WeChat
+1. Delivery adapter contract
+2. Email delivery adapter module
+3. SMS delivery adapter module
+4. Email verification code provider
+5. SMS verification code provider
+6. OAuth2 generic provider
+7. GitHub
+8. Google
+9. Apple Sign In
+10. WeChat
 
 Reason:
 
@@ -157,7 +160,8 @@ Reason:
 - Local password change validates credential update and refresh token invalidation behavior.
 - Supabase validates the provider adapter and external identity binding model.
 - Supabase upstream email, phone, social, OAuth, and OIDC methods remain inside the single `supabase` provider boundary for the MVP.
-- Email and SMS should be added after the MVP because they require delivery infrastructure and abuse controls.
+- Email and SMS should be added after the MVP because they require delivery infrastructure, vendor adapters, templates, retry policy, and abuse controls.
+- SMS and email vendors are delivery adapters, not identity providers.
 - Generic OAuth2 creates a reusable base for GitHub, Google, and other providers.
 - WeChat and Apple have platform-specific edge cases and should be implemented after core provider contracts are stable.
 
