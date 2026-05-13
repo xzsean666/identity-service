@@ -24,12 +24,49 @@ It is similar in role to Keycloak, Auth0, Okta, or Clerk, but the intended direc
 
 - Provide unified user identity management.
 - Support multiple login providers through a consistent provider adapter model.
+- Support local username/password registration and login as the first MVP provider.
 - Map all external identities to one stable `internal_user_id`.
 - Issue and verify platform tokens.
 - Manage refresh tokens and session lifecycle.
 - Track device login state.
 - Support standard JWT, OAuth2, and OIDC integration patterns.
 - Provide a foundation for RBAC, tenants, MFA, SSO, Passkey, risk control, and audit logging.
+
+## MVP Scope
+
+The MVP is defined in:
+
+- `docs/MVP.md`
+
+The MVP includes:
+
+- Local username/password registration.
+- Local username/password login.
+- Supabase provider adapter.
+- Provider enable/disable configuration.
+- Internal user identity mapping.
+- Session creation.
+- Access token and refresh token issuance.
+- Refresh token exchange.
+- Current session logout.
+
+The MVP excludes all other providers and enterprise features unless explicitly added as modules after the foundation is stable.
+
+## Technology Stack Direction
+
+The recommended stack is documented in:
+
+- `docs/TECH_STACK.md`
+
+Current recommendation:
+
+- Rust.
+- Axum.
+- PostgreSQL.
+- Argon2id for password hashing.
+- JWT access tokens with server-tracked refresh token state.
+
+TypeScript/NestJS remains the main alternative if fastest MVP delivery becomes more important than long-term identity-service correctness.
 
 ## Non-Goals for Initial Version
 
@@ -154,6 +191,7 @@ The system must:
 
 Initial provider categories:
 
+- Local username/password
 - Supabase
 - WeChat
 - SMS verification code
@@ -321,9 +359,36 @@ Provider adapters must not:
 - Write authorization rules.
 - Know about RBAC or tenant policy.
 
+## Feature Toggle Requirements
+
+The system must support centralized feature toggles for optional providers and capabilities.
+
+Required behavior:
+
+- Provider enablement must be controlled from centralized configuration.
+- Disabled providers must not register public login routes.
+- Disabled providers must not execute provider-specific verification logic.
+- Disabled provider usage must return an explicit provider-disabled error.
+- Business logic must not read environment variables directly to decide feature availability.
+
+MVP provider toggles:
+
+- `local_password`
+- `supabase`
+
+Future provider toggles:
+
+- `wechat`
+- `sms`
+- `email`
+- `oauth2`
+- `github`
+- `google`
+- `apple`
+
 ## API Surface
 
-The exact framework is not selected yet.
+The recommended framework is Axum, but exact route names and handler structure should be finalized during implementation.
 
 The API surface should be designed around these categories.
 
@@ -496,10 +561,12 @@ The system must:
 - Select implementation language and framework.
 - Create project skeleton.
 - Add centralized configuration.
+- Add feature toggle support.
 - Add internal user model.
 - Add external identity model.
 - Add provider adapter contract.
-- Add one or two initial providers.
+- Add local username/password provider.
+- Add Supabase provider adapter.
 - Add session and token foundation.
 
 ### Phase 2 - Multi-Provider Authentication

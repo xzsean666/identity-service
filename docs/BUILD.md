@@ -19,6 +19,8 @@ identity-service/
     ARCHITECTURE.md
     SPEC.md
     BUILD.md
+    TECH_STACK.md
+    MVP.md
     nextsession.md
 ```
 
@@ -34,7 +36,9 @@ Read documents in this order:
 2. `docs/ARCHITECTURE.md`
 3. `docs/SPEC.md`
 4. `docs/BUILD.md`
-5. `docs/nextsession.md`
+5. `docs/TECH_STACK.md`
+6. `docs/MVP.md`
+7. `docs/nextsession.md`
 
 Purpose of each document:
 
@@ -42,6 +46,8 @@ Purpose of each document:
 - `docs/ARCHITECTURE.md` defines system architecture and module boundaries.
 - `docs/SPEC.md` defines product and system requirements.
 - `docs/BUILD.md` defines build and usage guidance.
+- `docs/TECH_STACK.md` records the technology stack recommendation and tradeoffs.
+- `docs/MVP.md` defines the first minimum viable product.
 - `docs/nextsession.md` preserves context for the next AI-assisted session.
 
 ## Current Validation Commands
@@ -74,31 +80,34 @@ Do not push unless explicitly requested.
 
 Before Step 4 implementation begins, choose and document:
 
-- Programming language
-- Web framework
-- Package manager
-- Database
-- Cache layer
-- Token signing approach
+- Programming language: recommended Rust
+- Web framework: recommended Axum
+- Package manager: Cargo
+- Database: recommended PostgreSQL
+- Cache layer: optional Redis after MVP
+- Token signing approach: JWT access tokens plus server-tracked refresh tokens
 - Local development strategy
 - Deployment target
-- Test framework
+- Test framework: Rust unit and integration tests through Cargo
 - Migration strategy
 
 These decisions should be recorded before production code is added.
+
+Current recommendation is documented in:
+
+- `docs/TECH_STACK.md`
 
 ## Recommended Technology Decision Checklist
 
 ### Language and Framework
 
-Decision needed:
+Recommended:
 
-- Node.js with NestJS or Fastify
-- Go with Gin, Echo, Fiber, or standard HTTP
-- Java with Spring Boot
-- Kotlin with Spring Boot or Ktor
-- Python with FastAPI
 - Rust with Axum
+
+Main alternative:
+
+- TypeScript with NestJS
 
 Selection criteria:
 
@@ -120,6 +129,7 @@ Decision needed:
 Initial recommendation:
 
 - Use a relational database because identity, sessions, bindings, clients, and permissions require consistency and constraints.
+- PostgreSQL is the preferred MVP database.
 
 ### Cache
 
@@ -132,6 +142,7 @@ Decision needed:
 Initial recommendation:
 
 - Add Redis only when session, token, rate-limit, or provider callback flows require it.
+- Redis is not required for the first MVP.
 
 ### Token Strategy
 
@@ -149,23 +160,27 @@ Initial recommendation:
 - Keep access tokens short-lived.
 - Store refresh token state server-side.
 - Separate token issuance from session lifecycle.
+- Hash refresh tokens before storing them.
 
 ### Provider Integration Order
 
 Recommended initial provider order:
 
-1. Email verification code
-2. SMS verification code
-3. OAuth2 generic provider
-4. Supabase
-5. WeChat
+1. Local username/password
+2. Supabase
+3. Email verification code
+4. SMS verification code
+5. OAuth2 generic provider
 6. GitHub
 7. Google
 8. Apple Sign In
+9. WeChat
 
 Reason:
 
-- Email and SMS flows validate the internal identity, session, and token foundation without relying on full third-party OAuth complexity.
+- Local username/password validates the internal identity, credential, session, and token foundation.
+- Supabase validates the provider adapter and external identity binding model.
+- Email and SMS should be added after the MVP because they require delivery infrastructure and abuse controls.
 - Generic OAuth2 creates a reusable base for GitHub, Google, and other providers.
 - WeChat and Apple have platform-specific edge cases and should be implemented after core provider contracts are stable.
 

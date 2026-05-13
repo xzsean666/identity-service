@@ -26,6 +26,7 @@ External Identity Provider Identity
 
 Supported and planned identity providers include:
 
+- Local username and password
 - Supabase Auth
 - WeChat login
 - SMS verification code
@@ -67,11 +68,14 @@ identity-service/
     ARCHITECTURE.md
     SPEC.md
     BUILD.md
+    TECH_STACK.md
+    MVP.md
     nextsession.md
   src/
     application/
       authentication/
       authorization/
+      feature_toggle/
       identity_binding/
       session/
       token/
@@ -83,6 +87,7 @@ identity-service/
       tenants/
     providers/
       common/
+      local_password/
       supabase/
       wechat/
       sms/
@@ -225,6 +230,37 @@ Dependencies:
 Design rule:
 
 - Provider adapters must not create sessions, issue tokens, or directly decide authorization.
+
+### Local Password Provider Module
+
+Purpose:
+
+- Provide first-party username and password registration and login.
+- Treat local credentials as one provider type behind the same provider adapter boundary.
+- Keep password hashing and verification isolated from general authentication flow coordination.
+
+Input:
+
+- Username
+- Plaintext password during registration or login
+- Password policy context
+
+Output:
+
+- Normalized external identity using provider name `local_password`
+- Password verification result
+- Explicit credential error
+
+Dependencies:
+
+- Credential repository
+- Password hashing library
+- Security policy module
+
+Design rule:
+
+- Plaintext passwords must never be stored, logged, emitted in events, or passed beyond the local password provider boundary.
+- Password hashes must use a modern password hashing algorithm selected in the security policy.
 
 ### Identity Binding Module
 
@@ -441,6 +477,34 @@ Dependencies:
 - Configuration module
 - Risk module when introduced
 
+### Feature Toggle Module
+
+Purpose:
+
+- Control which identity providers and optional capabilities are enabled.
+- Provide one explicit place where runtime feature availability is decided.
+- Prevent disabled provider modules from registering routes or executing provider logic.
+
+Input:
+
+- Centralized service configuration
+- Provider capability definitions
+
+Output:
+
+- Enabled feature list
+- Enabled provider list
+- Disabled feature decision
+
+Dependencies:
+
+- Configuration module
+
+Design rule:
+
+- Feature toggles must be evaluated at startup and exposed as explicit provider availability.
+- Business logic must not read environment variables directly to decide whether a module is enabled.
+
 ### Audit Module
 
 Purpose:
@@ -554,6 +618,11 @@ Key fields:
 - verified contact information
 - linked `internal_user_id`
 - binding status
+
+MVP provider identities:
+
+- `local_password` identity for username/password login
+- `supabase` identity for Supabase user mapping
 
 ### Session
 
@@ -695,6 +764,43 @@ Flow description:
 
 ## Key Design Decisions
 
+### Preferred Technology Direction
+
+The recommended implementation direction is Rust with a small HTTP framework such as Axum.
+
+Reason:
+
+- Identity services are security-sensitive and benefit from strong types, explicit error handling, memory safety, and predictable resource usage.
+- Rust makes hidden shared mutable state harder to introduce.
+- Axum's explicit routing and extractor model matches the architecture goal of locally understandable modules.
+
+Tradeoff:
+
+- Rust may make the MVP slower than TypeScript/NestJS if the team is not already comfortable with Rust.
+- Some provider SDKs, especially Supabase client examples, are more mature in JavaScript/TypeScript ecosystems.
+
+The decision is recorded in:
+
+- `docs/TECH_STACK.md`
+
+### MVP Scope Boundary
+
+The MVP should include only:
+
+- Local username/password registration.
+- Local username/password login.
+- Supabase provider adapter.
+- Internal user identity mapping.
+- Basic session lifecycle.
+- Basic access and refresh token issuance.
+- Provider feature toggles through centralized configuration.
+
+All other providers should be added later as optional modules.
+
+The MVP plan is recorded in:
+
+- `docs/MVP.md`
+
 ### Provider Adapter Pattern
 
 All provider-specific behavior must be isolated behind adapter contracts.
@@ -760,12 +866,13 @@ Enterprise features must be introduced as modules, not mixed into the first auth
 
 Recommended order:
 
-1. Core user, provider adapter, session, and token foundation.
-2. OAuth2/OIDC provider surface.
-3. Authorization and RBAC.
-4. Organization and tenant support.
-5. MFA and Passkey.
-6. Risk control and audit expansion.
+1. MVP local username/password and Supabase provider foundation.
+2. Core user, provider adapter, session, and token hardening.
+3. OAuth2/OIDC provider surface.
+4. Authorization and RBAC.
+5. Organization and tenant support.
+6. MFA and Passkey.
+7. Risk control and audit expansion.
 
 ## Architecture Boundaries
 
@@ -809,8 +916,8 @@ Authorization must not:
 
 ## Risks and Unknowns
 
-- The final implementation language and framework are not selected yet.
-- Database choice is not selected yet.
+- Rust and Axum are recommended but still need final confirmation before implementation starts.
+- PostgreSQL is recommended but migration tooling still needs to be selected.
 - Token storage strategy and refresh token rotation details need specification.
 - Supabase integration boundary needs clarification because Supabase can be both an identity provider and a backend platform.
 - WeChat login requires environment-specific behavior for web, mobile, and mini-program scenarios.

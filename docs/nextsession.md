@@ -19,6 +19,8 @@ Repository state:
 - Documentation-only repository.
 - Initial Git history has been created.
 - Architecture, specification, build guidance, and AI agent workflow are documented.
+- Technology stack recommendation has been documented.
+- MVP scope has been documented.
 - Implementation has not started.
 
 Current completed workflow steps:
@@ -52,6 +54,8 @@ Core architecture decisions:
 - Keep authentication, session, token, and authorization modules separate.
 - Keep provider-specific logic out of core identity modules.
 - Centralize security policy and configuration.
+- Use centralized feature toggles to enable or disable provider modules.
+- Start the MVP with local username/password and Supabase provider support.
 - Support JWT, OAuth2, and OIDC standards.
 - Add enterprise features incrementally instead of mixing them into the first version.
 
@@ -130,6 +134,41 @@ Completed content:
 - Environment configuration guidance.
 - Future testing strategy.
 
+### Technology Stack Decision
+
+File:
+
+- `docs/TECH_STACK.md`
+
+Completed content:
+
+- Rust recommendation.
+- Axum framework recommendation.
+- PostgreSQL recommendation.
+- Redis deferred until needed.
+- TypeScript/NestJS alternative.
+- Supabase integration boundary.
+- Password hashing decision.
+
+### MVP Plan
+
+File:
+
+- `docs/MVP.md`
+
+Completed content:
+
+- MVP goal.
+- Included and excluded scope.
+- Local username/password provider plan.
+- Supabase provider plan.
+- Provider feature toggle strategy.
+- MVP API capabilities.
+- MVP data model.
+- MVP security requirements.
+- MVP acceptance criteria.
+- Post-MVP provider roadmap.
+
 ## Pending Tasks
 
 ### Step 4 - Implementation Preparation
@@ -138,15 +177,15 @@ Pending because implementation requires explicit user approval.
 
 Before writing code, decide:
 
-1. Programming language.
-2. Web framework.
-3. Package manager.
-4. Database.
-5. Cache strategy.
-6. Token signing algorithm and key management approach.
+1. Confirm Rust as the implementation language.
+2. Confirm Axum as the web framework.
+3. Confirm Cargo as the package manager.
+4. Confirm PostgreSQL as the database.
+5. Confirm Redis is deferred until needed.
+6. Confirm JWT access tokens and server-tracked refresh tokens.
 7. Migration tool.
 8. Test framework.
-9. First provider implementation order.
+9. Confirm MVP provider order: local username/password, then Supabase.
 10. Deployment target.
 
 ### Step 4 - Suggested First Implementation Increment
@@ -155,14 +194,17 @@ Recommended first implementation increment after approval:
 
 1. Create project skeleton.
 2. Add centralized configuration module.
-3. Add internal user domain model.
-4. Add external identity domain model.
-5. Add provider adapter contract.
-6. Add email verification code provider stub or mock provider.
-7. Add session model.
-8. Add token issuance interface.
-9. Add minimal authentication flow.
-10. Add unit tests for identity binding and provider normalization.
+3. Add feature toggle model.
+4. Add internal user domain model.
+5. Add external identity domain model.
+6. Add provider adapter contract.
+7. Add local username/password provider.
+8. Add password hashing service.
+9. Add session model.
+10. Add token issuance interface.
+11. Add minimal authentication flow.
+12. Add Supabase provider adapter.
+13. Add unit tests for identity binding, password verification, refresh token behavior, and provider normalization.
 
 ### Step 4 - Suggested Second Implementation Increment
 
@@ -179,12 +221,13 @@ Recommended second implementation increment:
 
 Recommended third implementation increment:
 
-1. Add OAuth2 generic provider adapter.
-2. Add GitHub provider.
-3. Add Google provider.
-4. Add Supabase provider.
-5. Add account linking.
-6. Add provider contract tests.
+1. Add email verification code provider.
+2. Add SMS verification code provider.
+3. Add OAuth2 generic provider adapter.
+4. Add GitHub provider.
+5. Add Google provider.
+6. Add account linking.
+7. Add provider contract tests.
 
 ### Step 4 - Suggested Fourth Implementation Increment
 
@@ -215,19 +258,20 @@ For the next AI session:
 
 ### Technology Stack
 
-The programming language and framework are not selected.
+The recommended language and framework are Rust and Axum.
 
 Impact:
 
-- Cannot define exact build, test, migration, or runtime commands yet.
+- The recommendation still needs explicit confirmation before implementation.
+- Exact build, test, migration, and runtime commands will be finalized when the Rust project skeleton is created.
 
 ### Database
 
-The database is not selected.
+PostgreSQL is recommended.
 
 Impact:
 
-- Persistence model and migration strategy cannot be finalized.
+- Migration tooling still needs to be selected.
 
 ### Supabase Boundary
 
@@ -275,12 +319,13 @@ Current known commits:
 
 - `feat: add architecture design docs`
 - `feat: add system documentation`
+- `feat: add context handoff documentation`
 
-This handoff document should be committed with:
+This documentation update should be committed with:
 
 ```bash
 git add .
-git commit -m "feat: add context handoff documentation"
+git commit -m "feat: document technology stack and mvp scope"
 ```
 
 ## Handoff Completion Criteria

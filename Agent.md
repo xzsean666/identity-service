@@ -141,6 +141,8 @@ Required documents:
 - `docs/ARCHITECTURE.md` - architecture design
 - `docs/SPEC.md` - system specification
 - `docs/BUILD.md` - build and usage instructions
+- `docs/TECH_STACK.md` - technology stack recommendation and tradeoffs
+- `docs/MVP.md` - minimum viable product scope and acceptance criteria
 - `docs/nextsession.md` - context handoff for future sessions
 
 ## Git Workflow
