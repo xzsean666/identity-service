@@ -5,6 +5,7 @@ use thiserror::Error;
 #[derive(Clone, Debug)]
 pub struct AppConfig {
     pub http: HttpConfig,
+    pub persistence: PersistenceConfig,
     pub identity_providers: IdentityProviderConfig,
     pub client: ClientConfig,
     pub tokens: TokenConfig,
@@ -16,6 +17,18 @@ pub struct AppConfig {
 pub struct HttpConfig {
     pub host: String,
     pub port: u16,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PersistenceConfig {
+    pub backend: PersistenceBackend,
+    pub database_url: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum PersistenceBackend {
+    Memory,
+    Postgres,
 }
 
 #[derive(Clone, Debug)]
@@ -95,6 +108,7 @@ impl AppConfig {
                 host: optional_env("IDENTITY_HTTP_HOST", "127.0.0.1"),
                 port: parse_u16_env("IDENTITY_HTTP_PORT", 3000)?,
             },
+            persistence: parse_persistence_config()?,
             identity_providers: IdentityProviderConfig {
                 local_password: ProviderToggle {
                     enabled: parse_bool_env("IDENTITY_PROVIDER_LOCAL_PASSWORD_ENABLED", true)?,
@@ -163,6 +177,30 @@ impl AppConfig {
     }
 }
 
+fn parse_persistence_config() -> Result<PersistenceConfig, ConfigError> {
+    let backend_name = optional_env("IDENTITY_PERSISTENCE_BACKEND", "memory");
+    let backend = match backend_name.as_str() {
+        "memory" => PersistenceBackend::Memory,
+        "postgres" => PersistenceBackend::Postgres,
+        _ => {
+            return Err(ConfigError::InvalidValue {
+                name: "IDENTITY_PERSISTENCE_BACKEND",
+                message: "must be one of: memory, postgres".to_owned(),
+            });
+        }
+    };
+    let database_url = env::var("IDENTITY_DATABASE_URL").ok();
+
+    if backend == PersistenceBackend::Postgres && database_url.is_none() {
+        return Err(ConfigError::MissingRequired("IDENTITY_DATABASE_URL"));
+    }
+
+    Ok(PersistenceConfig {
+        backend,
+        database_url,
+    })
+}
+
 fn required_env(name: &'static str) -> Result<String, ConfigError> {
     env::var(name).map_err(|_| ConfigError::MissingRequired(name))
 }
@@ -220,5 +258,75 @@ fn parse_u16_env(name: &'static str, default_value: u16) -> Result<u16, ConfigEr
                 message: error.to_string(),
             }),
         Err(_) => Ok(default_value),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::{Mutex, OnceLock};
+
+    static ENV_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+
+    #[test]
+    fn persistence_defaults_to_memory() {
+        with_env_lock(|| {
+            unsafe {
+                env::remove_var("IDENTITY_PERSISTENCE_BACKEND");
+                env::remove_var("IDENTITY_DATABASE_URL");
+            }
+
+            let config = parse_persistence_config().unwrap();
+
+            assert_eq!(config.backend, PersistenceBackend::Memory);
+            assert_eq!(config.database_url, None);
+        });
+    }
+
+    #[test]
+    fn postgres_persistence_requires_database_url() {
+        with_env_lock(|| {
+            unsafe {
+                env::set_var("IDENTITY_PERSISTENCE_BACKEND", "postgres");
+                env::remove_var("IDENTITY_DATABASE_URL");
+            }
+
+            let result = parse_persistence_config();
+
+            assert!(matches!(
+                result,
+                Err(ConfigError::MissingRequired("IDENTITY_DATABASE_URL"))
+            ));
+        });
+    }
+
+    #[test]
+    fn invalid_persistence_backend_is_rejected() {
+        with_env_lock(|| {
+            unsafe {
+                env::set_var("IDENTITY_PERSISTENCE_BACKEND", "sqlite");
+                env::remove_var("IDENTITY_DATABASE_URL");
+            }
+
+            let result = parse_persistence_config();
+
+            assert!(matches!(
+                result,
+                Err(ConfigError::InvalidValue {
+                    name: "IDENTITY_PERSISTENCE_BACKEND",
+                    ..
+                })
+            ));
+        });
+    }
+
+    fn with_env_lock(run: impl FnOnce()) {
+        let lock = ENV_LOCK.get_or_init(|| Mutex::new(()));
+        let _guard = lock.lock().unwrap();
+        run();
+        unsafe {
+            env::remove_var("IDENTITY_PERSISTENCE_BACKEND");
+            env::remove_var("IDENTITY_DATABASE_URL");
+        }
     }
 }

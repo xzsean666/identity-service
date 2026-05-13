@@ -23,7 +23,10 @@ Repository state:
 - Architecture audit findings have been incorporated into module ownership rules.
 - Backend and gateway integration contract has been documented.
 - Current executable implementation uses in-memory development storage.
+- Persistence config now supports `IDENTITY_PERSISTENCE_BACKEND=memory|postgres`, defaulting to `memory`.
+- `IDENTITY_DATABASE_URL` is required only when the backend is `postgres`.
 - PostgreSQL persistence remains pending.
+- PostgreSQL schema files exist, but business repository wiring is still the next persistence step.
 
 Current completed workflow steps:
 
@@ -258,9 +261,10 @@ Completed Step 4 work:
 Open implementation decisions:
 
 1. Migration runner/tooling beyond plain SQL files.
-2. Production key storage strategy.
-3. Deployment target.
-4. Runtime PostgreSQL repository implementation.
+2. PostgreSQL repository wiring from the existing persistence config into business flows.
+3. Production key storage strategy.
+4. Deployment target.
+5. Runtime PostgreSQL repository implementation.
 
 Fixed decisions:
 

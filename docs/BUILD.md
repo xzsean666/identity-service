@@ -7,6 +7,7 @@ Step 4 - MVP implementation has started.
 The repository now contains a Rust/Axum service skeleton with an in-memory development storage adapter.
 
 PostgreSQL remains the selected production persistence target, but the current implementation is intentionally the first executable MVP increment, not the final production storage layer.
+The PostgreSQL schema exists in `migrations/`, and persistence configuration can select `memory` or `postgres`; business code still uses the in-memory adapter until the next wiring increment.
 
 ## Repository Layout
 
@@ -55,6 +56,7 @@ Current executable scope:
 Current implementation limits:
 
 - Persistence is in memory and resets on process restart.
+- `IDENTITY_PERSISTENCE_BACKEND` defaults to `memory`; `postgres` is validated at startup but is not wired into business repositories yet.
 - Supabase verification supports JWT access token validation through a configured Supabase JWKS.
 - Supabase fixture tokens are available only when explicitly enabled for local tests.
 - PostgreSQL persistence is required before production deployment.
@@ -99,6 +101,9 @@ Optional environment variables:
 ```bash
 export IDENTITY_HTTP_HOST="127.0.0.1"
 export IDENTITY_HTTP_PORT="3000"
+export IDENTITY_PERSISTENCE_BACKEND="memory"
+# Required only when IDENTITY_PERSISTENCE_BACKEND="postgres".
+# export IDENTITY_DATABASE_URL="postgres://identity:identity@localhost:5432/identity"
 export IDENTITY_TOKEN_PRIVATE_KEY_PEM_PATH="./secrets/jwt_private.pem"
 export IDENTITY_TOKEN_PUBLIC_KEY_PEM_PATH="./secrets/jwt_public.pem"
 export IDENTITY_TOKEN_KEY_ID="mvp-local-key"
@@ -214,6 +219,14 @@ git diff --check
 ## PostgreSQL Target
 
 PostgreSQL is still the required production persistence target because identity bindings, sessions, refresh tokens, and credential updates need transactional consistency.
+
+Current persistence configuration:
+
+- `IDENTITY_PERSISTENCE_BACKEND=memory` uses the current in-memory MVP adapter and is the default.
+- `IDENTITY_PERSISTENCE_BACKEND=postgres` requires `IDENTITY_DATABASE_URL` during configuration loading.
+- `IDENTITY_DATABASE_URL` is optional for the default memory backend.
+
+The PostgreSQL schema exists, but business wiring still uses in-memory repositories. The next persistence increment should connect the existing service flows to PostgreSQL implementations.
 
 The MVP schema lives in `migrations/` as plain PostgreSQL SQL:
 
