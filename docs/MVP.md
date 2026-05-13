@@ -157,6 +157,9 @@ The MVP must not include:
 - Administrative console UI.
 - User management admin APIs.
 - Client application registry.
+- Official SDKs.
+- Token introspection endpoint.
+- Permission check endpoint.
 
 These are post-MVP modules.
 
@@ -381,3 +384,7 @@ Changing a delivery vendor must not change authentication, identity binding, ses
 All post-MVP modules must follow:
 
 - `docs/MODULE_EXPANSION.md`
+
+Backend and gateway integration must follow:
+
+- `docs/INTEGRATION.md`

@@ -200,6 +200,8 @@ Examples:
 - Userinfo.
 - Introspection.
 - Revocation.
+- Permission check API.
+- Service-to-service authentication.
 
 Responsibilities:
 
@@ -210,6 +212,8 @@ Must not:
 
 - Bypass platform session or token modules.
 - Bypass identity binding.
+
+Public protocol surfaces must also follow `docs/INTEGRATION.md`.
 
 ## Module Addition Checklist
 

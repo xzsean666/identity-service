@@ -23,6 +23,7 @@ Repository state:
 - MVP scope has been documented.
 - Module expansion rules have been documented.
 - Architecture audit findings have been incorporated into module ownership rules.
+- Backend and gateway integration contract has been documented.
 - Implementation has not started.
 
 Current completed workflow steps:
@@ -66,6 +67,8 @@ Core architecture decisions:
 - Let token own JWT signing/verification and opaque refresh token secret generation only.
 - Support JWT in the MVP.
 - Keep OAuth2 and OIDC provider mode post-MVP.
+- Treat `internal_user_id` as the only stable user subject for downstream services.
+- Keep provider-specific identifiers out of public integration contracts.
 - Add enterprise features incrementally instead of mixing them into the first version.
 
 ## Completed Parts
@@ -199,6 +202,22 @@ Completed content:
 - Composition root and registry rules.
 - Security support interface rules.
 
+### Backend Integration Guide
+
+File:
+
+- `docs/INTEGRATION.md`
+
+Completed content:
+
+- MVP JWT verification contract.
+- Stable `internal_user_id` integration rule.
+- Gateway integration rules.
+- Internal backend integration rules.
+- SDK and middleware boundary.
+- Versioning and compatibility rules.
+- Public error response contract.
+
 ### Architecture Audit Updates
 
 Completed content:
@@ -301,11 +320,12 @@ For the next AI session:
 3. Read `docs/SPEC.md`.
 4. Read `docs/BUILD.md`.
 5. Read `docs/MODULE_EXPANSION.md`.
-6. Confirm whether the user has approved Step 4 implementation.
-7. If implementation is approved, use Rust, Axum, Cargo, PostgreSQL, Argon2id, JWT access tokens, and server-tracked refresh tokens.
-8. Update `docs/BUILD.md` with stack-specific commands before or during implementation.
-9. Create the implementation skeleton in small increments.
-10. Commit each major step.
+6. Read `docs/INTEGRATION.md`.
+7. Confirm whether the user has approved Step 4 implementation.
+8. If implementation is approved, use Rust, Axum, Cargo, PostgreSQL, Argon2id, JWT access tokens, and server-tracked refresh tokens.
+9. Update `docs/BUILD.md` with stack-specific commands before or during implementation.
+10. Create the implementation skeleton in small increments.
+11. Commit each major step.
 
 ## Risks and Unknowns
 
@@ -383,12 +403,13 @@ Current known commits:
 - `feat: add password change and supabase auth boundary`
 - `feat: document verification delivery adapters`
 - `feat: document module expansion rules`
+- `feat: refine modular architecture audit findings`
 
 This documentation hardening should be committed with:
 
 ```bash
 git add .
-git commit -m "feat: refine modular architecture audit findings"
+git commit -m "feat: document backend integration contract"
 ```
 
 ## Handoff Completion Criteria

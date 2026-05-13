@@ -144,6 +144,7 @@ Required documents:
 - `docs/TECH_STACK.md` - fixed technology stack decision
 - `docs/MVP.md` - minimum viable product scope and acceptance criteria
 - `docs/MODULE_EXPANSION.md` - module extension rules for post-MVP capabilities
+- `docs/INTEGRATION.md` - integration contract for other backends and gateways
 - `docs/nextsession.md` - context handoff for future sessions
 
 ## Git Workflow

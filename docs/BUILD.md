@@ -22,6 +22,7 @@ identity-service/
     TECH_STACK.md
     MVP.md
     MODULE_EXPANSION.md
+    INTEGRATION.md
     nextsession.md
 ```
 
@@ -40,7 +41,8 @@ Read documents in this order:
 5. `docs/TECH_STACK.md`
 6. `docs/MVP.md`
 7. `docs/MODULE_EXPANSION.md`
-8. `docs/nextsession.md`
+8. `docs/INTEGRATION.md`
+9. `docs/nextsession.md`
 
 Purpose of each document:
 
@@ -51,6 +53,7 @@ Purpose of each document:
 - `docs/TECH_STACK.md` records the fixed technology stack decision.
 - `docs/MVP.md` defines the first minimum viable product.
 - `docs/MODULE_EXPANSION.md` defines how post-MVP modules must be added.
+- `docs/INTEGRATION.md` defines how other backends and gateways integrate.
 - `docs/nextsession.md` preserves context for the next AI-assisted session.
 
 ## Current Validation Commands
@@ -252,6 +255,8 @@ Target:
 - Provider adapter interface behavior
 - OAuth2/OIDC endpoint compatibility
 - Gateway token verification expectations
+- Backend integration token claim compatibility
+- Public error response compatibility
 
 ### End-to-End Tests
 

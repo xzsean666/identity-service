@@ -71,6 +71,7 @@ identity-service/
     TECH_STACK.md
     MVP.md
     MODULE_EXPANSION.md
+    INTEGRATION.md
     nextsession.md
   src/
     application/
@@ -706,6 +707,7 @@ Purpose:
 
 - Expose the service through HTTP, OpenAPI, gateway integration, and internal service interfaces.
 - Convert transport requests into application-level commands.
+- Provide stable public integration contracts for other backend services.
 
 Input:
 
@@ -729,6 +731,7 @@ Dependencies:
 Design rule:
 
 - Interface modules must not contain provider-specific login logic or persistence logic.
+- Public integration surfaces must follow `docs/INTEGRATION.md`.
 
 ## Core Data Model
 
@@ -1073,6 +1076,10 @@ Recommended order:
 Detailed module expansion rules are defined in:
 
 - `docs/MODULE_EXPANSION.md`
+
+Backend and gateway integration rules are defined in:
+
+- `docs/INTEGRATION.md`
 
 Post-MVP capabilities must be added through explicit extension points:
 

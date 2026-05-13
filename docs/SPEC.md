@@ -19,6 +19,7 @@ It is similar in role to Keycloak, Auth0, Okta, or Clerk, but the intended direc
 - Strong AI-assisted maintainability
 - Provider adapter based extension model
 - Practical support for web, mobile, OpenAPI, third-party applications, and internal services
+- Stable integration contract for other backend projects and API gateways
 
 ## Primary Goals
 
@@ -29,6 +30,7 @@ It is similar in role to Keycloak, Auth0, Okta, or Clerk, but the intended direc
 - Issue and verify platform tokens.
 - Manage refresh tokens and session lifecycle.
 - Track device login state.
+- Provide a stable backend integration contract based on platform tokens and `internal_user_id`.
 - Support standard JWT, OAuth2, and OIDC integration patterns.
 - Provide a foundation for RBAC, tenants, MFA, SSO, Passkey, risk control, and audit logging.
 
@@ -518,6 +520,10 @@ The HTTP framework is Axum.
 
 The MVP API surface must stay inside the boundaries defined in `docs/MVP.md`.
 
+Backend and gateway integration contracts are defined in:
+
+- `docs/INTEGRATION.md`
+
 ### MVP Authentication APIs
 
 MVP capabilities:
@@ -556,6 +562,10 @@ Post-MVP capabilities:
 - OAuth2/OIDC provider mode.
 - RBAC permission checks.
 - Administration APIs.
+- JWKS endpoint.
+- Token introspection endpoint.
+- Permission check endpoint.
+- Service-to-service authentication.
 
 ## Data Requirements
 
