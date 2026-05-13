@@ -134,7 +134,8 @@ Supabase adapter responsibilities:
 
 - Verify Supabase user identity.
 - Accept a Supabase JWT access token in the MVP product contract.
-- Use a local JSON fixture adapter only for the current Step 4 executable increment until real Supabase JWT verification is added.
+- Verify Supabase JWTs against configured JWKS in the current Step 4 implementation.
+- Keep local JSON fixture tokens behind explicit development/test configuration only.
 - Normalize the Supabase subject into an external identity.
 - Return provider metadata allowed by policy.
 

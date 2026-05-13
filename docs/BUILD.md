@@ -55,8 +55,9 @@ Current executable scope:
 Current implementation limits:
 
 - Persistence is in memory and resets on process restart.
-- Supabase verification is a local fixture adapter that accepts a JSON payload shaped like a verified Supabase JWT claim set.
-- Real Supabase JWT/JWKS verification and PostgreSQL persistence are required before production deployment.
+- Supabase verification supports JWT access token validation through a configured Supabase JWKS.
+- Supabase fixture tokens are available only when explicitly enabled for local tests.
+- PostgreSQL persistence is required before production deployment.
 - JWT revocation is stateless for external consumers; logout and password change revoke refresh-token state, while already issued access tokens remain valid until `exp`.
 
 ## Prerequisites
@@ -112,6 +113,10 @@ export IDENTITY_PROVIDER_SUPABASE_AUTO_PROVISION_ENABLED="true"
 export IDENTITY_PROVIDER_SUPABASE_PROJECT_URL="https://example.supabase.co"
 export IDENTITY_PROVIDER_SUPABASE_ISSUER="https://example.supabase.co/auth/v1"
 export IDENTITY_PROVIDER_SUPABASE_AUDIENCE="authenticated"
+export IDENTITY_PROVIDER_SUPABASE_JWKS_URL="https://example.supabase.co/auth/v1/.well-known/jwks.json"
+# Optional: inline JWKS JSON for controlled test or legacy environments.
+# export IDENTITY_PROVIDER_SUPABASE_JWKS_JSON='{"keys":[]}'
+export IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED="false"
 ```
 
 Production issuer values must be environment-unique and stable, for example:
@@ -148,11 +153,29 @@ GET  /health
 
 Disabled providers keep their public routes registered and return `provider_disabled`.
 
-## Supabase Fixture Input
+## Supabase Input
 
-Current Supabase adapter input is a JSON string passed as `access_token`.
+Current Supabase adapter input is a Supabase JWT access token passed as `access_token`.
 
-Example request body:
+The adapter:
+
+- Reads `kid` from the token header.
+- Loads the matching key from configured Supabase JWKS.
+- Checks JWK `alg` against the token header algorithm.
+- Validates issuer, audience, expiration, and subject.
+- Rejects shared-secret JWKs from remote JWKS; use asymmetric Supabase signing keys for normal integration.
+
+For local tests only, set `IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED=true` to accept a JSON fixture string passed as `access_token`.
+
+JWT request body:
+
+```json
+{
+  "access_token": "<supabase-jwt-access-token>"
+}
+```
+
+Fixture request body:
 
 ```json
 {
@@ -160,7 +183,7 @@ Example request body:
 }
 ```
 
-This fixture exists only to exercise provider normalization and identity binding before real Supabase JWT verification is added.
+Fixture mode exists only to exercise provider normalization and identity binding without a Supabase project.
 
 ## Development Commands
 
@@ -192,11 +215,24 @@ git diff --check
 
 PostgreSQL is still the required production persistence target because identity bindings, sessions, refresh tokens, and credential updates need transactional consistency.
 
+The MVP schema lives in `migrations/` as plain PostgreSQL SQL:
+
+```bash
+psql "$DATABASE_URL" -f migrations/0001_mvp_identity_schema.up.sql
+```
+
+Rollback for local development:
+
+```bash
+psql "$DATABASE_URL" -f migrations/0001_mvp_identity_schema.down.sql
+```
+
+The migration creates only the current MVP persistence tables: `internal_users`, `external_identities`, `local_credentials`, `sessions`, and `refresh_token_records`.
+
 The next persistence increment should add:
 
 - Repository contracts owned by the application layer.
 - PostgreSQL implementations under infrastructure.
-- Migrations for internal users, external identities, local credentials, sessions, and refresh token records.
 - Transactional password-change and refresh-token rotation behavior.
 
 Do not add Redis to the MVP unless a specific runtime need appears.

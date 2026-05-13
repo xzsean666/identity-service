@@ -224,7 +224,8 @@ The Supabase provider adapter must:
 - Use the Supabase user identifier as the provider subject identifier.
 - Ignore which upstream Supabase method was used for this service's provider selection.
 - Accept a Supabase JWT access token in the MVP product contract.
-- Current Step 4 code uses a local Supabase fixture adapter until real JWT verification is added.
+- Current Step 4 code verifies Supabase JWT access tokens through configured JWKS.
+- Local fixture tokens require explicit development/test configuration.
 - Store no Supabase provider token.
 - Return only allowlisted Supabase metadata.
 
@@ -460,7 +461,8 @@ MVP provider inputs:
 
 Current Step 4 implementation note:
 
-- The Supabase adapter accepts a local JSON fixture payload through the `access_token` field until real Supabase JWT verification is implemented.
+- The Supabase adapter verifies JWT access tokens using configured JWKS.
+- A local JSON fixture payload can be enabled only for tests and development.
 
 Post-MVP provider input examples:
 

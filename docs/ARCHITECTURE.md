@@ -989,7 +989,7 @@ Supabase-side credential management, including Supabase email/password change an
 
 MVP Supabase product input is a Supabase JWT access token provided by the client.
 
-The current Step 4 executable adapter uses a local JSON fixture payload through the `access_token` field until real Supabase JWT verification is implemented.
+The current Step 4 executable adapter verifies Supabase JWTs against configured JWKS. Local JSON fixture payloads are development/test-only.
 
 MVP Supabase adapter must:
 

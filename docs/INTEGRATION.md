@@ -61,9 +61,9 @@ MVP access token verification must check:
 - Issued time.
 - JWT identifier presence and UUID format.
 
-MVP key distribution:
+MVP platform token key distribution:
 
-- JWKS is post-MVP.
+- A platform JWKS endpoint is post-MVP.
 - Backend services receive the platform public key PEM through deployment configuration.
 - Backend services must map configured `kid` values to public keys.
 - Unknown `kid` values must be rejected.

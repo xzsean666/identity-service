@@ -23,7 +23,7 @@ Repository state:
 - Architecture audit findings have been incorporated into module ownership rules.
 - Backend and gateway integration contract has been documented.
 - Current executable implementation uses in-memory development storage.
-- PostgreSQL persistence and real Supabase JWT verification remain pending.
+- PostgreSQL persistence remains pending.
 
 Current completed workflow steps:
 
@@ -226,7 +226,8 @@ Completed content:
 - Feature toggle gate path.
 - Refresh token ownership split between session and token modules.
 - MVP Supabase product input narrowed to Supabase JWT access token.
-- Current Step 4 Supabase adapter uses a JSON fixture payload until real JWT verification is added.
+- Current Step 4 Supabase adapter verifies JWT access tokens through configured JWKS.
+- Local JSON fixture payloads are development/test-only.
 - MVP static client context.
 - Local credential operation boundary for password change.
 - Registration and binding policy.
@@ -234,17 +235,32 @@ Completed content:
 
 ## Pending Tasks
 
-### Step 4 - Implementation Preparation
+### Step 4 - Completed Implementation Increments
 
-Implementation is approved.
+Completed Step 4 work:
 
-Before writing code, decide:
+1. Rust/Axum project skeleton.
+2. Centralized environment configuration.
+3. Provider feature toggles.
+4. Internal user and external identity domain models.
+5. Provider adapter contract and registry.
+6. Local username/password provider.
+7. Argon2id password hashing.
+8. Authenticated local password change flow.
+9. Identity binding service.
+10. Session and refresh token models.
+11. RS256 platform JWT token service.
+12. Minimal Axum HTTP authentication API.
+13. Supabase provider adapter with JWT/JWKS verification.
+14. PostgreSQL MVP schema migration files.
+15. Unit tests and HTTP integration tests for MVP flows.
 
-1. Migration tool.
-2. Key storage strategy.
-3. Access token lifetime.
-4. Local development strategy.
-5. Deployment target.
+Open implementation decisions:
+
+1. Migration runner/tooling beyond plain SQL files.
+2. Production key storage strategy.
+3. Deployment target.
+4. Runtime PostgreSQL repository implementation.
 
 Fixed decisions:
 
@@ -257,35 +273,16 @@ Fixed decisions:
 - MVP local password flow includes authenticated password change.
 - Redis: excluded from MVP.
 
-### Step 4 - First MVP Implementation Increment
-
-First implementation increment after approval:
-
-1. Create project skeleton.
-2. Add centralized configuration module.
-3. Add feature toggle model.
-4. Add internal user domain model.
-5. Add external identity domain model.
-6. Add provider adapter contract.
-7. Add local username/password provider.
-8. Add password hashing service.
-9. Add authenticated local password change flow.
-10. Add identity binding service.
-11. Add session model.
-12. Add token issuance interface.
-13. Add minimal authentication flow.
-14. Add Supabase provider adapter.
-15. Add unit tests for identity binding, password verification, password change, refresh token behavior, and provider normalization.
-
 ### Step 4 - MVP Hardening Increment
 
-Second implementation increment:
+Next implementation increment:
 
-1. Add persistence layer.
-2. Add refresh token rotation.
-3. Add current-session revocation.
-4. Add token verification.
-5. Add integration tests.
+1. Add repository contracts owned by application services.
+2. Add PostgreSQL repository implementations.
+3. Wire runtime configuration to select memory or PostgreSQL persistence.
+4. Move password change and refresh rotation into PostgreSQL transactions.
+5. Add database integration tests.
+6. Add Supabase JWKS caching with conservative refresh behavior.
 
 ### Post-MVP Provider Increment
 
@@ -324,10 +321,9 @@ For the next AI session:
 5. Read `docs/MODULE_EXPANSION.md`.
 6. Read `docs/INTEGRATION.md`.
 7. Confirm whether the user has approved Step 4 implementation.
-8. If implementation is approved, use Rust, Axum, Cargo, PostgreSQL, Argon2id, JWT access tokens, and server-tracked refresh tokens.
-9. Update `docs/BUILD.md` with stack-specific commands before or during implementation.
-10. Create the implementation skeleton in small increments.
-11. Commit each major step.
+8. Continue inside the MVP boundary in `docs/MVP.md`.
+9. Prefer PostgreSQL persistence as the next implementation focus.
+10. Commit each major step.
 
 ## Risks and Unknowns
 

@@ -64,9 +64,9 @@ The MVP must support:
 - Binding Supabase identity as provider `supabase`.
 - Resolving Supabase identity to `internal_user_id`.
 
-MVP product intent is to accept a Supabase JWT access token supplied by the client.
+MVP product input is a Supabase JWT access token supplied by the client.
 
-The current executable implementation uses a local fixture adapter that accepts a JSON claim payload through the same `access_token` field. Real Supabase JWT verification is required before production use.
+The current executable implementation verifies Supabase JWT access tokens through configured JWKS. A local JSON fixture payload can be enabled only for development and tests.
 
 The MVP does not implement Supabase callback routes.
 
@@ -349,7 +349,7 @@ security:
 
 MVP refresh token hashes use keyed HMAC-SHA256 over high-entropy opaque refresh tokens and constant-time comparison.
 
-MVP backend JWT verification uses statically distributed public key PEM plus `key_id`; JWKS is post-MVP.
+MVP backend verification of this platform's own JWTs uses statically distributed public key PEM plus `key_id`; a platform JWKS endpoint is post-MVP.
 
 `tokens.audience` is the only MVP JWT `aud` source. Per-client or per-service audiences require the post-MVP client application registry.
 

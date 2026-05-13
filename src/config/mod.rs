@@ -36,6 +36,9 @@ pub struct SupabaseProviderConfig {
     pub project_url: String,
     pub issuer: String,
     pub audience: String,
+    pub jwks_url: String,
+    pub jwks_json: Option<String>,
+    pub fixture_tokens_enabled: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -96,21 +99,36 @@ impl AppConfig {
                 local_password: ProviderToggle {
                     enabled: parse_bool_env("IDENTITY_PROVIDER_LOCAL_PASSWORD_ENABLED", true)?,
                 },
-                supabase: SupabaseProviderConfig {
-                    enabled: parse_bool_env("IDENTITY_PROVIDER_SUPABASE_ENABLED", true)?,
-                    auto_provision_enabled: parse_bool_env(
-                        "IDENTITY_PROVIDER_SUPABASE_AUTO_PROVISION_ENABLED",
-                        true,
-                    )?,
-                    project_url: optional_env(
-                        "IDENTITY_PROVIDER_SUPABASE_PROJECT_URL",
-                        "https://example.supabase.co",
-                    ),
-                    issuer: optional_env(
+                supabase: {
+                    let issuer = optional_env(
                         "IDENTITY_PROVIDER_SUPABASE_ISSUER",
                         "https://example.supabase.co/auth/v1",
-                    ),
-                    audience: optional_env("IDENTITY_PROVIDER_SUPABASE_AUDIENCE", "authenticated"),
+                    );
+                    SupabaseProviderConfig {
+                        enabled: parse_bool_env("IDENTITY_PROVIDER_SUPABASE_ENABLED", true)?,
+                        auto_provision_enabled: parse_bool_env(
+                            "IDENTITY_PROVIDER_SUPABASE_AUTO_PROVISION_ENABLED",
+                            true,
+                        )?,
+                        project_url: optional_env(
+                            "IDENTITY_PROVIDER_SUPABASE_PROJECT_URL",
+                            "https://example.supabase.co",
+                        ),
+                        jwks_url: optional_env(
+                            "IDENTITY_PROVIDER_SUPABASE_JWKS_URL",
+                            &format!("{issuer}/.well-known/jwks.json"),
+                        ),
+                        jwks_json: env::var("IDENTITY_PROVIDER_SUPABASE_JWKS_JSON").ok(),
+                        fixture_tokens_enabled: parse_bool_env(
+                            "IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED",
+                            false,
+                        )?,
+                        issuer,
+                        audience: optional_env(
+                            "IDENTITY_PROVIDER_SUPABASE_AUDIENCE",
+                            "authenticated",
+                        ),
+                    }
                 },
             },
             client: ClientConfig {
