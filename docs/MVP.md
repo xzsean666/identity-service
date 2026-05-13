@@ -64,6 +64,10 @@ The MVP must support:
 - Binding Supabase identity as provider `supabase`.
 - Resolving Supabase identity to `internal_user_id`.
 
+MVP Supabase adapter input is limited to a Supabase access or session token supplied by the client.
+
+The MVP does not implement Supabase callback routes.
+
 Supabase must remain an external provider.
 
 It must not replace the internal user model, platform session model, or platform token model.
@@ -93,9 +97,9 @@ identity_providers:
     enabled: true
   wechat:
     enabled: false
-  sms:
+  sms_code:
     enabled: false
-  email:
+  email_code:
     enabled: false
   oauth2:
     enabled: false
@@ -244,6 +248,33 @@ Required fields:
 - revoked time
 - reuse detection status
 
+Allowed refresh token states:
+
+- `active`
+- `consumed`
+- `revoked`
+- `reused`
+- `expired`
+
+Refresh token record ownership:
+
+- Session module owns refresh token records, token family state, rotation, reuse detection, and revocation.
+- Token module generates opaque refresh token secrets but does not persist refresh token records.
+
+### MVP Client Context
+
+The MVP does not include a client application registry.
+
+Instead, the MVP uses static client context from centralized configuration.
+
+Required fields:
+
+- client identifier
+- allowed audience
+- trusted origin when needed
+
+The full client application registry is post-MVP.
+
 ## MVP Security Requirements
 
 The MVP must:
@@ -270,6 +301,17 @@ The MVP must not:
 - Let Supabase issue this platform's final access token.
 - Add authorization policy logic beyond authenticated-user checks.
 - Treat Supabase email, phone, social, OAuth, or OIDC identities as separate MVP providers.
+
+Password change policy:
+
+- Successful local password change revokes all existing refresh token families for the user.
+- The current authenticated session receives a new refresh token family.
+- Password hash update, old family revocation, and new family creation must happen in one transaction.
+
+Refresh token exchange policy:
+
+- Exchange consumes the old refresh token and inserts the new refresh token in one transaction.
+- Reuse of a consumed refresh token marks the token family as `reused` and revokes the family.
 
 ## MVP Acceptance Criteria
 

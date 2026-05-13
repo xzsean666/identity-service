@@ -22,6 +22,7 @@ Repository state:
 - Fixed technology stack decision has been documented.
 - MVP scope has been documented.
 - Module expansion rules have been documented.
+- Architecture audit findings have been incorporated into module ownership rules.
 - Implementation has not started.
 
 Current completed workflow steps:
@@ -59,6 +60,10 @@ Core architecture decisions:
 - Start the MVP with local username/password registration, login, password change, and Supabase provider support.
 - Treat Supabase upstream email, phone, social, OAuth, and OIDC methods as one provider named `supabase`.
 - Treat post-MVP SMS and email vendors as delivery adapters, not identity providers.
+- Use a startup composition root to build provider and delivery adapter registries.
+- Keep concrete providers out of authentication, session, token, and identity binding modules.
+- Let session own refresh token records, families, rotation, reuse detection, and revocation.
+- Let token own JWT signing/verification and opaque refresh token secret generation only.
 - Support JWT in the MVP.
 - Keep OAuth2 and OIDC provider mode post-MVP.
 - Add enterprise features incrementally instead of mixing them into the first version.
@@ -191,6 +196,21 @@ Completed content:
 - Module addition checklist.
 - Configuration rules.
 - Dependency direction rules.
+- Composition root and registry rules.
+- Security support interface rules.
+
+### Architecture Audit Updates
+
+Completed content:
+
+- Provider registry and descriptor rules.
+- Feature toggle gate path.
+- Refresh token ownership split between session and token modules.
+- MVP Supabase input narrowed to Supabase access or session token.
+- MVP static client context.
+- Local credential operation boundary for password change.
+- Registration and binding policy.
+- Token policy with RS256 access tokens.
 
 ## Pending Tasks
 
@@ -201,12 +221,10 @@ Pending because implementation requires explicit user approval.
 Before writing code, decide:
 
 1. Migration tool.
-2. JWT signing algorithm.
-3. Key storage strategy.
-4. Access token lifetime.
-5. Refresh token rotation policy.
-6. Local development strategy.
-7. Deployment target.
+2. Key storage strategy.
+3. Access token lifetime.
+4. Local development strategy.
+5. Deployment target.
 
 Fixed decisions:
 
@@ -214,6 +232,7 @@ Fixed decisions:
 - HTTP framework: Axum.
 - Package manager: Cargo.
 - Database: PostgreSQL.
+- JWT signing algorithm: RS256 for MVP access tokens.
 - MVP providers: local username/password and Supabase only.
 - MVP local password flow includes authenticated password change.
 - Redis: excluded from MVP.
@@ -339,7 +358,8 @@ Refresh token rotation, reuse detection, and session revocation require precise 
 
 Impact:
 
-- Must be specified and tested carefully before production use.
+- Session owns refresh token state.
+- Implementation must test active, consumed, revoked, reused, and expired states.
 
 ### SMS and Email Delivery Vendors
 
@@ -362,12 +382,13 @@ Current known commits:
 - `feat: lock rust stack and mvp boundary`
 - `feat: add password change and supabase auth boundary`
 - `feat: document verification delivery adapters`
+- `feat: document module expansion rules`
 
 This documentation hardening should be committed with:
 
 ```bash
 git add .
-git commit -m "feat: document module expansion rules"
+git commit -m "feat: refine modular architecture audit findings"
 ```
 
 ## Handoff Completion Criteria

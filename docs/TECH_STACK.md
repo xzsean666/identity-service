@@ -108,12 +108,15 @@ Password handling rules:
 
 The MVP uses:
 
-- Short-lived JWT access tokens.
+- Short-lived JWT access tokens signed with RS256.
+- `kid` on signed access tokens.
 - Server-side refresh token records.
 - Hashed refresh tokens at rest.
-- Refresh token rotation when implemented.
+- Refresh token rotation.
 
 Token issuance must remain separate from session lifecycle.
+
+Session module owns refresh token records, families, rotation, reuse detection, and revocation.
 
 ## Supabase Integration Boundary
 
@@ -130,6 +133,7 @@ Supabase-side credential management, including Supabase email/password change an
 Supabase adapter responsibilities:
 
 - Verify Supabase user or session identity.
+- Accept only a Supabase access or session token in the MVP.
 - Normalize the Supabase subject into an external identity.
 - Return provider metadata allowed by policy.
 

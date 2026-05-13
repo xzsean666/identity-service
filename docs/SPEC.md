@@ -219,6 +219,9 @@ The Supabase provider adapter must:
 - Normalize Supabase identity into provider `supabase`.
 - Use the Supabase user identifier as the provider subject identifier.
 - Ignore which upstream Supabase method was used for this service's provider selection.
+- Accept only a Supabase access or session token in the MVP.
+- Store no Supabase provider token.
+- Return only allowlisted Supabase metadata.
 
 Supabase upstream methods may include:
 
@@ -232,6 +235,22 @@ Supabase upstream methods may include:
 - OIDC.
 
 This service must not split those upstream methods into separate MVP providers.
+
+### Registration and Binding Policy
+
+MVP registration behavior:
+
+- Local registration creates a new internal user and local credential.
+- Local login never auto-creates a user.
+- Supabase exchange uses `RegisterOrLogin` only when `identity_providers.supabase.auto_provision_enabled` is enabled.
+- Supabase exchange uses `LoginOnly` when auto-provisioning is disabled.
+
+Binding behavior:
+
+- `LoginOnly` resolves only existing identity bindings.
+- `RegisterOrLogin` resolves an existing binding or creates a new internal user and binding atomically.
+- `LinkToExisting` binds a verified external identity to an already authenticated `internal_user_id`.
+- Provider subject uniqueness must be enforced by provider name and provider subject identifier.
 
 ### Post-MVP SMS and Email Verification Providers
 
@@ -311,27 +330,37 @@ The system must:
 
 ### Session Management
 
-The system must:
+MVP session behavior:
 
 - Create sessions.
-- List active sessions for a user.
-- Revoke one session.
-- Revoke all sessions for a user.
 - Track device metadata.
-- Track client application metadata.
+- Track static MVP client context from configuration.
 - Support refresh token rotation.
 - Reject revoked, expired, or reused refresh tokens.
 
+Post-MVP session behavior:
+
+- List active sessions for a user.
+- Revoke one selected session.
+- Revoke all sessions for a user.
+- Track full client application registry context.
+
 ### Token Management
 
-The system must:
+MVP token behavior:
 
 - Issue access tokens.
 - Issue refresh tokens.
 - Verify access token signature and claims.
-- Rotate refresh tokens when configured.
+- Rotate refresh tokens.
 - Support token revocation through session state.
-- Support signing key rotation in a future phase.
+- Keep refresh token persistence, family state, reuse detection, and revocation in the session module.
+
+Post-MVP token behavior:
+
+- Support signing key rotation.
+- Support OIDC ID tokens.
+- Support OAuth2 protocol tokens.
 
 Access token claims should include:
 
@@ -346,9 +375,12 @@ Access token claims should include:
 
 ### Authorization
 
-The system must:
+MVP authorization behavior:
 
-- Verify authenticated subject context.
+- Verify authenticated subject context for current-user access.
+
+Post-MVP authorization behavior:
+
 - Evaluate requested resource and action.
 - Return explicit allow or deny decisions.
 - Prepare for RBAC and tenant-aware authorization.
@@ -459,6 +491,11 @@ Required behavior:
 - Disabled providers must not execute provider-specific verification logic.
 - Disabled provider usage must return an explicit provider-disabled error.
 - Business logic must not read environment variables directly to decide feature availability.
+- Configuration loads toggles.
+- Startup builds the enabled provider registry.
+- Router registers routes only for enabled providers.
+- Authentication uses the provider registry and rejects disabled provider usage.
+- Provider adapters expose descriptors but do not read environment variables or feature toggles directly.
 
 MVP provider toggles:
 
@@ -468,8 +505,8 @@ MVP provider toggles:
 Future provider toggles:
 
 - `wechat`
-- `sms`
-- `email`
+- `sms_code`
+- `email_code`
 - `oauth2`
 - `github`
 - `google`
@@ -585,6 +622,37 @@ The system must:
 - Rate limit high-risk endpoints.
 - Keep provider secrets centralized in configuration or secret management.
 - Record security-sensitive events for audit when audit is available.
+- Use one abuse-control policy interface for high-risk operations.
+- Emit structured redacted security events through one security event sink.
+
+### MVP Token Policy
+
+Access token behavior:
+
+- JWT access tokens are signed with RS256.
+- Access tokens include `kid`, issuer, subject, audience, issued time, expiration, session identifier, client identifier, and `jti`.
+- MVP access token lifetime is configured centrally and should be short-lived.
+- Token verification must check signature, issuer, audience, expiration, and `kid`.
+
+Refresh token behavior:
+
+- Refresh tokens are opaque random secrets.
+- Only refresh token hashes are stored.
+- Session module owns refresh token records, families, rotation, reuse detection, and revocation.
+- Token module may generate refresh token secrets but must not persist refresh token state.
+- Refresh token exchange consumes the old token and creates the new token in one transaction.
+
+### MVP Client Context
+
+The MVP uses static client context from centralized configuration.
+
+Required configuration:
+
+- client identifier
+- allowed audience
+- trusted origin when needed
+
+The client application registry is post-MVP.
 
 ## Non-Functional Requirements
 
@@ -639,8 +707,8 @@ The system must:
 
 ### Phase 2 - Multi-Provider Authentication
 
-- Add email provider.
-- Add SMS provider.
+- Add email code provider.
+- Add SMS code provider.
 - Add generic OAuth2 provider.
 - Add GitHub provider.
 - Add Google provider.

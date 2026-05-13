@@ -92,8 +92,8 @@ identity-service/
       supabase/
       verification_code/
       wechat/
-      sms/
-      email/
+      sms_code/
+      email_code/
       oauth2/
       github/
       google/
@@ -122,6 +122,10 @@ identity-service/
     contract/
     e2e/
 ```
+
+MVP implementation must scaffold only active MVP modules.
+
+Post-MVP directories in this structure describe future boundaries and must not be created as empty modules before their feature is approved.
 
 ## Module Breakdown
 
@@ -235,6 +239,39 @@ Dependencies:
 Design rule:
 
 - Provider adapters must not create sessions, issue tokens, or directly decide authorization.
+- The generic provider adapter contract is limited to credential or token verification and normalized identity output.
+- Provider-specific operations, such as local password change, must use a provider-specific operation surface instead of widening the generic provider adapter contract.
+
+### Provider Registry Module
+
+Purpose:
+
+- Hold enabled identity providers built at startup.
+- Route authentication requests to provider adapters through descriptors instead of concrete imports.
+- Prevent authentication code from growing provider-specific `match` logic.
+
+Input:
+
+- Provider descriptors.
+- Centralized feature toggle configuration.
+- Concrete provider adapter instances wired by the composition root.
+
+Output:
+
+- Enabled provider lookup.
+- Disabled provider decision.
+- Route registration metadata.
+
+Dependencies:
+
+- Configuration module.
+- Provider adapter contracts.
+
+Design rule:
+
+- Authentication depends on the provider registry and provider contracts.
+- Provider contracts must not depend on concrete provider modules.
+- Concrete providers are wired only in the composition root.
 
 ### Local Password Provider Module
 
@@ -270,6 +307,7 @@ Design rule:
 - Plaintext passwords must never be stored, logged, emitted in events, or passed beyond the local password provider boundary.
 - Password hashes must use a modern password hashing algorithm selected in the security policy.
 - Password change must verify the current password before replacing the stored password hash.
+- Password change belongs to a local-only credential operation surface, not the generic provider adapter contract.
 
 ### Post-MVP Verification Code Provider Module
 
@@ -290,7 +328,7 @@ Output:
 
 - Verification code challenge result.
 - Verification code validation result.
-- Normalized external identity for `sms` or `email`.
+- Normalized external identity for `sms_code` or `email_code`.
 - Explicit verification error.
 
 Dependencies:
@@ -366,6 +404,13 @@ Dependencies:
 - Identity persistence repository
 - Audit module when introduced
 
+Design rule:
+
+- Identity binding owns uniqueness checks, conflict decisions, and binding modes.
+- Supported binding modes are `LoginOnly`, `RegisterOrLogin`, and `LinkToExisting`.
+- User creation may happen only when the binding mode explicitly allows registration.
+- External identity binding and internal user creation must be atomic when both happen in one operation.
+
 ### User Module
 
 Purpose:
@@ -399,6 +444,7 @@ Purpose:
 - Manage session lifecycle.
 - Track device login state.
 - Support refresh token rotation and session revocation.
+- Own refresh token records, token families, rotation state, reuse detection, and revocation state.
 
 Input:
 
@@ -416,15 +462,22 @@ Output:
 Dependencies:
 
 - Session repository
-- Token module
 - Security policy module
+
+Design rule:
+
+- Session owns refresh token hashes and refresh token family state.
+- Refresh token states are `active`, `consumed`, `revoked`, `reused`, and `expired`.
+- Refresh token exchange must consume the old token, insert the new token, and update session activity in one transaction.
+- Token module must not own refresh token persistence or reuse detection.
 
 ### Token Module
 
 Purpose:
 
 - Issue and verify platform tokens.
-- Support JWT access tokens and refresh token workflows.
+- Sign and verify JWT access tokens.
+- Generate opaque refresh token secrets for the session module to store as hashes.
 - Prepare for OAuth2 and OIDC provider mode.
 
 Input:
@@ -444,12 +497,12 @@ Output:
 Dependencies:
 
 - Key management
-- Session module
 - Authorization module for claim enrichment when needed
 
 Design rule:
 
 - Token generation must be deterministic from explicit input and configured signing keys.
+- Token module receives explicit session state as input and must not read session storage directly.
 
 ### Authorization Module
 
@@ -535,6 +588,8 @@ Dependencies:
 Purpose:
 
 - Centralize security rules that must remain consistent across authentication, token, and session behavior.
+- Provide one abuse-control policy interface for high-risk operations.
+- Provide one security event sink for redacted security events.
 
 Input:
 
@@ -549,6 +604,7 @@ Output:
 - Policy decision
 - Required challenge
 - Security violation result
+- Redacted security event
 
 Dependencies:
 
@@ -582,6 +638,11 @@ Design rule:
 
 - Feature toggles must be evaluated at startup and exposed as explicit provider availability.
 - Business logic must not read environment variables directly to decide whether a module is enabled.
+- Configuration loads toggles.
+- Startup builds the enabled provider registry and delivery adapter registry.
+- Interface routes are registered only for enabled modules.
+- Authentication rejects disabled provider usage through the registry.
+- Provider adapters expose descriptors but must not read environment variables or toggles directly.
 
 ### Audit Module
 
@@ -736,6 +797,10 @@ Key fields:
 
 Represents an application allowed to use the identity service.
 
+The full client application registry is post-MVP.
+
+The MVP uses static client context loaded from centralized configuration.
+
 Key fields:
 
 - client identifier
@@ -822,9 +887,9 @@ Flow description:
 2. The interface module validates request shape and passes a command to the authentication module.
 3. The authentication module confirms the authenticated `internal_user_id`.
 4. The local password provider verifies the current password.
-5. The local password provider hashes and stores the new password.
-6. The session module revokes or rotates old refresh token state according to policy.
-7. The token module issues a new token pair when policy requires it.
+5. The local password provider hashes the new password.
+6. The credential update, old refresh token family revocation, and new refresh token family creation happen in one transaction.
+7. The token module issues a new token pair from explicit session state.
 8. The interface module returns the password change result.
 
 ### Authorization Flow
@@ -917,6 +982,18 @@ All Supabase-authenticated users must normalize to:
 - provider subject identifier: Supabase user identifier
 
 Supabase-side credential management, including Supabase email/password change and password reset flows, remains in Supabase Auth.
+
+MVP Supabase adapter input is limited to a Supabase access or session token provided by the client.
+
+MVP Supabase adapter must:
+
+- Verify token issuer or project identity against configured Supabase project settings.
+- Verify subject, expiration, and audience when available.
+- Store no Supabase provider token.
+- Return only allowlisted Supabase metadata.
+- Let platform token issuance happen only after identity binding and platform session creation.
+
+MVP Supabase adapter must not implement Supabase callback flows.
 
 ### Provider Adapter Pattern
 
@@ -1048,7 +1125,7 @@ Authorization must not:
 ## Risks and Unknowns
 
 - Migration tooling still needs to be selected.
-- Token storage strategy and refresh token rotation details need specification.
+- Refresh token state transitions must be tested carefully during implementation.
 - Supabase must remain an external identity provider and must not replace `internal_user_id`, platform sessions, or platform tokens.
 - WeChat login requires environment-specific behavior for web, mobile, and mini-program scenarios.
 - OAuth2/OIDC provider mode needs careful client registry and redirect URI validation.

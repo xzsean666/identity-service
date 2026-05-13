@@ -123,18 +123,18 @@ The fixed stack is documented in:
 ### Token Strategy
 
 - Keep access tokens short-lived.
+- Sign MVP JWT access tokens with RS256.
+- Include `kid` on signed access tokens.
 - Store refresh token state server-side.
 - Separate token issuance from session lifecycle.
 - Hash refresh tokens before storing them.
+- Session module owns refresh token records, families, rotation, reuse detection, and revocation.
 
 Implementation-time details still needed:
 
-- JWT signing algorithm.
 - Key storage.
 - Key rotation plan.
 - Access token lifetime.
-- Refresh token rotation policy.
-- Token revocation behavior.
 
 ### Identity Implementation Order
 
