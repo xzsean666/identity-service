@@ -2,11 +2,11 @@
 
 ## Current Step
 
-Documentation hardening.
+Step 4 - MVP implementation has started.
 
 This document defines how other projects, backend services, API gateways, and internal microservices should integrate with the Identity Platform.
 
-No implementation code is included in this step.
+This file is the public integration contract for the current MVP implementation boundary.
 
 ## Purpose
 
@@ -44,6 +44,12 @@ Other backend services may integrate by:
 5. Reading `aud` as allowed service or API audience.
 6. Rejecting expired or invalid tokens.
 
+MVP clients must send access tokens as:
+
+```http
+Authorization: Bearer <platform_access_token>
+```
+
 MVP access token verification must check:
 
 - Signature.
@@ -53,7 +59,15 @@ MVP access token verification must check:
 - Expiration.
 - Subject.
 - Issued time.
-- JWT identifier.
+- JWT identifier presence and UUID format.
+
+MVP key distribution:
+
+- JWKS is post-MVP.
+- Backend services receive the platform public key PEM through deployment configuration.
+- Backend services must map configured `kid` values to public keys.
+- Unknown `kid` values must be rejected.
+- Key rotation in MVP is manual: deploy the new `kid -> public key` mapping to consumers, switch the issuer to the new signing key, then remove the old key after all old access tokens expire.
 
 MVP access token claims must include:
 
@@ -65,6 +79,56 @@ MVP access token claims must include:
 - `jti`.
 - `sid` as session identifier.
 - `client_id` from MVP static client context.
+
+MVP audience semantics:
+
+- MVP uses one shared platform API audience from `tokens.audience`.
+- All backend services that accept MVP access tokens validate this same audience.
+- Per-service audiences are post-MVP and require client/application registry design.
+
+MVP claim contract v1:
+
+| Field | Location | Required | Format |
+| --- | --- | --- | --- |
+| `alg` | JOSE header | yes | `RS256` |
+| `kid` | JOSE header | yes | configured key identifier |
+| `iss` | claim | yes | configured issuer string |
+| `sub` | claim | yes | UUID-formatted `internal_user_id` |
+| `aud` | claim | yes | configured platform API audience |
+| `iat` | claim | yes | unix timestamp |
+| `exp` | claim | yes | unix timestamp |
+| `jti` | claim | yes | UUID |
+| `sid` | claim | yes | UUID-formatted session identifier |
+| `client_id` | claim | yes | configured MVP client identifier |
+
+`jti` is an access token identifier only. The MVP does not maintain a server-side `jti` denylist or replay-detection store.
+
+## MVP Current User Contract
+
+`GET /v1/users/me` requires `Authorization: Bearer <platform_access_token>` and returns the platform user for the token subject.
+
+Response shape:
+
+```json
+{
+  "internal_user_id": "uuid",
+  "account_status": "Active",
+  "created_at": "RFC3339 timestamp",
+  "updated_at": "RFC3339 timestamp"
+}
+```
+
+## MVP Stateless Revocation Limit
+
+External backend services and gateways that verify JWTs locally do not observe session revocation in real time.
+
+MVP guarantees:
+
+- Logout revokes the current platform session and refresh-token state.
+- Local password change revokes existing refresh-token families.
+- Already issued access tokens may remain accepted by local JWT verification until `exp`.
+
+If a backend requires immediate revocation awareness, add a post-MVP token verification, session check, or introspection endpoint before relying on that behavior.
 
 ## MVP Non-Goals for Integration
 
@@ -102,15 +166,25 @@ API gateways should:
 - Verify platform access token signature.
 - Validate issuer and audience.
 - Reject expired tokens.
+- Drop or overwrite inbound identity headers before forwarding.
 - Forward only normalized identity context to upstream services.
 
 Recommended forwarded context:
 
-- `internal_user_id`.
-- session identifier.
-- client identifier.
-- scopes when available.
-- request correlation identifier.
+| Header | Required | Value |
+| --- | --- | --- |
+| `X-Identity-User-Id` | yes | `internal_user_id` from token `sub` |
+| `X-Identity-Session-Id` | yes | session identifier from token `sid` |
+| `X-Identity-Client-Id` | yes | client identifier from token `client_id` |
+| `X-Request-Id` | recommended | gateway-generated request identifier |
+
+Post-MVP authorization modules may add scope, tenant, organization, or permission headers after their contracts are defined.
+
+Gateway security rules:
+
+- Public ingress must never trust client-supplied `X-Identity-*` headers.
+- Gateways must drop or overwrite inbound identity headers before forwarding.
+- Upstream services may trust these headers only over authenticated internal paths such as mTLS, private network policy, or signed gateway headers.
 
 Gateways must not forward:
 
@@ -123,6 +197,7 @@ Gateways must not forward:
 Internal backends should:
 
 - Accept identity context from a trusted gateway, or verify the platform access token directly.
+- Trust forwarded identity headers only over authenticated internal paths such as mTLS, private network policy, or signed gateway headers.
 - Treat `internal_user_id` as the user key.
 - Use platform permission checks when post-MVP authorization APIs are introduced.
 - Avoid storing provider-specific identifiers as primary foreign keys.
@@ -182,12 +257,53 @@ Compatibility rules:
 
 Public integration APIs should return structured errors.
 
-Required fields:
+Current MVP error response shape:
 
-- error code.
-- human-readable message safe for logs.
-- correlation identifier.
-- retryable flag when applicable.
+```json
+{
+  "error_code": "provider_disabled",
+  "message": "provider disabled",
+  "retryable": false
+}
+```
+
+Current fields:
+
+- `error_code`: stable machine-readable code.
+- `message`: human-readable message safe for logs.
+- `retryable`: boolean.
+
+Correlation identifiers are post-MVP unless a gateway adds `X-Request-Id`.
+
+Common MVP error codes:
+
+- `validation_failed`
+- `invalid_credentials`
+- `provider_disabled`
+- `provider_verification_failed`
+- `identity_conflict`
+- `unauthorized`
+- `token_invalid`
+- `refresh_token_reused`
+- `account_disabled`
+- `not_found`
+- `internal_error`
+
+Common status mapping:
+
+| Error code | HTTP status |
+| --- | --- |
+| `validation_failed` | `400` |
+| `invalid_credentials` | `401` |
+| `provider_disabled` | `403` |
+| `provider_verification_failed` | `401` |
+| `identity_conflict` | `409` |
+| `unauthorized` | `401` |
+| `token_invalid` | `401` |
+| `refresh_token_reused` | `401` |
+| `account_disabled` | `403` |
+| `not_found` | `404` |
+| `internal_error` | `500` |
 
 Errors must not expose:
 

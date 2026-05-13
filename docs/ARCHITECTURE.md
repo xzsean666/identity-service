@@ -2,11 +2,11 @@
 
 ## Current Step
 
-Step 1 - Architecture Design.
+Step 4 - MVP implementation has started.
 
 This document defines the initial architecture for the Identity Platform / IAM Service.
 
-No implementation code is included in this step.
+Implementation must follow `docs/MVP.md`. Post-MVP modules listed here are extension notes, not approved implementation scope.
 
 ## System Overview
 
@@ -641,7 +641,8 @@ Design rule:
 - Business logic must not read environment variables directly to decide whether a module is enabled.
 - Configuration loads toggles.
 - Startup builds the enabled provider registry and delivery adapter registry.
-- Interface routes are registered only for enabled modules.
+- MVP public auth routes remain registered and disabled providers return `provider_disabled`.
+- Post-MVP module-specific routes may be omitted when disabled if that module's public contract documents the behavior.
 - Authentication rejects disabled provider usage through the registry.
 - Provider adapters expose descriptors but must not read environment variables or toggles directly.
 
@@ -986,7 +987,9 @@ All Supabase-authenticated users must normalize to:
 
 Supabase-side credential management, including Supabase email/password change and password reset flows, remains in Supabase Auth.
 
-MVP Supabase adapter input is limited to a Supabase access or session token provided by the client.
+MVP Supabase product input is a Supabase JWT access token provided by the client.
+
+The current Step 4 executable adapter uses a local JSON fixture payload through the `access_token` field until real Supabase JWT verification is implemented.
 
 MVP Supabase adapter must:
 
@@ -1138,12 +1141,11 @@ Authorization must not:
 - OAuth2/OIDC provider mode needs careful client registry and redirect URI validation.
 - Multi-tenant authorization can significantly affect the data model and should not be added implicitly.
 
-## Architecture Completion Criteria
+## Historical Architecture Criteria
 
-Step 1 is complete when:
+Step 1 was complete when:
 
 - Overall architecture is documented.
 - Module responsibilities are explicit.
 - Data flow is documented.
 - Key design decisions are recorded.
-- No implementation code has been written.

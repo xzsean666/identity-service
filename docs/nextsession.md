@@ -2,11 +2,9 @@
 
 ## Current Step
 
-Step 3 - Context Handoff.
+Step 4 - MVP implementation in progress.
 
 This document preserves project state for future AI-assisted sessions.
-
-No implementation code has been written.
 
 ## Current Progress
 
@@ -16,7 +14,7 @@ Date:
 
 Repository state:
 
-- Documentation-only repository.
+- Rust/Axum MVP implementation has started.
 - Initial Git history has been created.
 - Architecture, specification, build guidance, and AI agent workflow are documented.
 - Fixed technology stack decision has been documented.
@@ -24,17 +22,19 @@ Repository state:
 - Module expansion rules have been documented.
 - Architecture audit findings have been incorporated into module ownership rules.
 - Backend and gateway integration contract has been documented.
-- Implementation has not started.
+- Current executable implementation uses in-memory development storage.
+- PostgreSQL persistence and real Supabase JWT verification remain pending.
 
 Current completed workflow steps:
 
 - Step 1 - Architecture Design: completed.
 - Step 2 - Documentation: completed.
 - Step 3 - Context Handoff: completed by this document.
+- Step 4 - First executable Rust/Axum MVP increment: in progress.
 
-Current blocked workflow step:
+Current active workflow step:
 
-- Step 4 - Implementation: pending explicit user approval.
+- Step 4 - Continue MVP implementation inside `docs/MVP.md`.
 
 ## Architecture Summary
 
@@ -225,7 +225,8 @@ Completed content:
 - Provider registry and descriptor rules.
 - Feature toggle gate path.
 - Refresh token ownership split between session and token modules.
-- MVP Supabase input narrowed to Supabase access or session token.
+- MVP Supabase product input narrowed to Supabase JWT access token.
+- Current Step 4 Supabase adapter uses a JSON fixture payload until real JWT verification is added.
 - MVP static client context.
 - Local credential operation boundary for password change.
 - Registration and binding policy.
@@ -235,7 +236,7 @@ Completed content:
 
 ### Step 4 - Implementation Preparation
 
-Pending because implementation requires explicit user approval.
+Implementation is approved.
 
 Before writing code, decide:
 
@@ -269,11 +270,12 @@ First implementation increment after approval:
 7. Add local username/password provider.
 8. Add password hashing service.
 9. Add authenticated local password change flow.
-10. Add session model.
-11. Add token issuance interface.
-12. Add minimal authentication flow.
-13. Add Supabase provider adapter.
-14. Add unit tests for identity binding, password verification, password change, refresh token behavior, and provider normalization.
+10. Add identity binding service.
+11. Add session model.
+12. Add token issuance interface.
+13. Add minimal authentication flow.
+14. Add Supabase provider adapter.
+15. Add unit tests for identity binding, password verification, password change, refresh token behavior, and provider normalization.
 
 ### Step 4 - MVP Hardening Increment
 
@@ -405,16 +407,16 @@ Current known commits:
 - `feat: document module expansion rules`
 - `feat: refine modular architecture audit findings`
 
-This documentation hardening should be committed with:
+Current Step 4 implementation should be committed with:
 
 ```bash
 git add .
-git commit -m "feat: document backend integration contract"
+git commit -m "feat: implement rust mvp skeleton"
 ```
 
-## Handoff Completion Criteria
+## Handoff Maintenance Criteria
 
-Step 3 is complete when:
+This handoff stays useful when:
 
 - Current progress is recorded.
 - Architecture summary is recorded.
@@ -422,4 +424,3 @@ Step 3 is complete when:
 - Pending tasks are listed step by step.
 - Next actions are clear.
 - Risks and unknowns are documented.
-- No implementation code has been written.

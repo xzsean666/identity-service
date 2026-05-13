@@ -2,11 +2,11 @@
 
 ## Current Step
 
-Documentation hardening.
+Step 4 - MVP implementation has started.
 
 This document defines the fixed MVP boundary for the Identity Platform / IAM Service.
 
-No implementation code is included in this step.
+Implementation must stay inside this boundary unless the user explicitly changes the MVP scope.
 
 ## MVP Goal
 
@@ -64,7 +64,9 @@ The MVP must support:
 - Binding Supabase identity as provider `supabase`.
 - Resolving Supabase identity to `internal_user_id`.
 
-MVP Supabase adapter input is limited to a Supabase access or session token supplied by the client.
+MVP product intent is to accept a Supabase JWT access token supplied by the client.
+
+The current executable implementation uses a local fixture adapter that accepts a JSON claim payload through the same `access_token` field. Real Supabase JWT verification is required before production use.
 
 The MVP does not implement Supabase callback routes.
 
@@ -95,6 +97,7 @@ identity_providers:
     enabled: true
   supabase:
     enabled: true
+    auto_provision_enabled: true
   wechat:
     enabled: false
   sms_code:
@@ -113,9 +116,9 @@ identity_providers:
 
 Feature toggle rules:
 
-- Disabled providers must not register public login routes.
+- The MVP uses stable public auth routes.
 - Disabled providers must not execute provider verification logic.
-- Disabled provider requests must return an explicit provider-disabled error.
+- Disabled provider requests must return an explicit `provider_disabled` error.
 - Provider availability must be decided from centralized configuration at startup.
 - Business logic must not read environment variables directly.
 
@@ -177,13 +180,46 @@ The MVP API must cover only these product capabilities:
 
 Health and readiness endpoints are allowed as operational endpoints, but they are not product scope.
 
+## MVP HTTP API Contract
+
+All routes are stable in the MVP.
+
+Disabled providers return `provider_disabled` instead of disappearing from the router.
+
+| Method | Path | Request | Success |
+| --- | --- | --- | --- |
+| `POST` | `/v1/auth/register` | `username`, `password` | token pair and current user |
+| `POST` | `/v1/auth/login` | `username`, `password` | token pair and current user |
+| `POST` | `/v1/auth/password/change` | bearer access token, `current_password`, `new_password` | new token pair |
+| `POST` | `/v1/auth/supabase/exchange` | `access_token` | token pair and current user |
+| `POST` | `/v1/auth/refresh` | `refresh_token` | new token pair |
+| `POST` | `/v1/auth/logout` | bearer access token | logout result |
+| `GET` | `/v1/users/me` | bearer access token | current user |
+
+MVP error codes:
+
+- `validation_failed`
+- `invalid_credentials`
+- `provider_disabled`
+- `provider_verification_failed`
+- `identity_conflict`
+- `unauthorized`
+- `token_invalid`
+- `refresh_token_reused`
+- `account_disabled`
+
+General HTTP error responses may also return:
+
+- `not_found`
+- `internal_error`
+
 ## MVP Data Model
 
 ### Internal User
 
 Required fields:
 
-- `internal_user_id`
+- `internal_user_id` as UUID v4
 - account status
 - created time
 - updated time
@@ -273,10 +309,49 @@ Instead, the MVP uses static client context from centralized configuration.
 Required fields:
 
 - client identifier
-- allowed audience
 - trusted origin when needed
 
 The full client application registry is post-MVP.
+
+## MVP Configuration Schema
+
+Minimum Step 4 configuration:
+
+```yaml
+http:
+  host: "127.0.0.1"
+  port: 3000
+identity_providers:
+  local_password:
+    enabled: true
+  supabase:
+    enabled: true
+    auto_provision_enabled: true
+    project_url: "https://example.supabase.co"
+    issuer: "https://example.supabase.co/auth/v1"
+    audience: "authenticated"
+client:
+  client_id: "identity-service-mvp"
+  trusted_origin: "http://localhost:3000"
+tokens:
+  issuer: "identity-service"
+  audience: "platform-api"
+  access_token_lifetime_seconds: 900
+  key_id: "mvp-local-key"
+  private_key_pem_path: "./secrets/jwt_private.pem"
+  public_key_pem_path: "./secrets/jwt_public.pem"
+sessions:
+  refresh_token_lifetime_seconds: 2592000
+  session_lifetime_seconds: 2592000
+security:
+  refresh_token_hmac_secret: "change-me"
+```
+
+MVP refresh token hashes use keyed HMAC-SHA256 over high-entropy opaque refresh tokens and constant-time comparison.
+
+MVP backend JWT verification uses statically distributed public key PEM plus `key_id`; JWKS is post-MVP.
+
+`tokens.audience` is the only MVP JWT `aud` source. Per-client or per-service audiences require the post-MVP client application registry.
 
 ## MVP Security Requirements
 
@@ -310,6 +385,12 @@ Password change policy:
 - Successful local password change revokes all existing refresh token families for the user.
 - The current authenticated session receives a new refresh token family.
 - Password hash update, old family revocation, and new family creation must happen in one transaction.
+
+Current Step 4 implementation note:
+
+- The first executable increment uses an in-memory storage adapter for local development and tests.
+- PostgreSQL persistence is required before production MVP acceptance.
+- Transaction requirements above describe the required PostgreSQL behavior.
 
 Refresh token exchange policy:
 

@@ -2,11 +2,11 @@
 
 ## Current Step
 
-Documentation hardening.
+Step 4 - MVP implementation has started.
 
 This document defines how MVP and post-MVP modules must be added without weakening the architecture.
 
-No implementation code is included in this step.
+Current implementation must remain inside the MVP boundary unless a new module is explicitly approved.
 
 ## Purpose
 
@@ -247,7 +247,8 @@ All optional modules must be controlled by centralized configuration.
 
 Required configuration behavior:
 
-- Disabled modules must not register public routes.
+- MVP public auth routes remain registered and return explicit disabled errors.
+- Post-MVP provider-specific routes may be omitted when disabled if documented in that module contract.
 - Disabled modules must not execute provider or delivery logic.
 - Disabled module usage must return an explicit disabled error.
 - Business logic must not read environment variables directly.
@@ -308,7 +309,8 @@ Rules:
 - Authentication depends on the provider registry, not concrete providers.
 - Verification code modules depend on the delivery adapter registry, not concrete vendors.
 - Concrete modules implement contracts and expose descriptors.
-- Disabled modules must not register public routes.
+- MVP public auth routes stay registered and return explicit disabled errors.
+- Post-MVP module-specific routes may be omitted when disabled if that behavior is documented.
 - Disabled module requests must fail with an explicit disabled error.
 
 ## Dependency Direction

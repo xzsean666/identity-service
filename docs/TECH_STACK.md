@@ -2,11 +2,11 @@
 
 ## Current Step
 
-Documentation hardening.
+Step 4 - MVP implementation has started.
 
 This document records the fixed technology stack for the Identity Platform / IAM Service.
 
-No implementation code is included in this step.
+Rust and Axum are fixed for implementation.
 
 ## Locked Decision
 
@@ -132,8 +132,9 @@ Supabase-side credential management, including Supabase email/password change an
 
 Supabase adapter responsibilities:
 
-- Verify Supabase user or session identity.
-- Accept only a Supabase access or session token in the MVP.
+- Verify Supabase user identity.
+- Accept a Supabase JWT access token in the MVP product contract.
+- Use a local JSON fixture adapter only for the current Step 4 executable increment until real Supabase JWT verification is added.
 - Normalize the Supabase subject into an external identity.
 - Return provider metadata allowed by policy.
 

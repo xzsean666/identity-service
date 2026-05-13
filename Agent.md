@@ -164,6 +164,6 @@ If an AI agent detects premature coding, poor modularization, hidden behavior, o
 
 ## Current Implementation Boundary
 
-No production implementation exists yet.
+Step 4 implementation is approved.
 
-The current approved scope is documentation and architecture preparation only.
+The current approved implementation scope is the MVP defined in `docs/MVP.md`.

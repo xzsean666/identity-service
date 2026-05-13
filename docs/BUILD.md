@@ -2,19 +2,19 @@
 
 ## Current Step
 
-Step 2 - Documentation.
+Step 4 - MVP implementation has started.
 
-This repository currently contains architecture and planning documents only.
+The repository now contains a Rust/Axum service skeleton with an in-memory development storage adapter.
 
-No implementation code exists yet, so there is no application build command, runtime command, package manager command, migration command, or test command at this stage.
+PostgreSQL remains the selected production persistence target, but the current implementation is intentionally the first executable MVP increment, not the final production storage layer.
 
 ## Repository Layout
-
-Current documentation layout:
 
 ```text
 identity-service/
   Agent.md
+  Cargo.toml
+  Cargo.lock
   docs/
     ARCHITECTURE.md
     SPEC.md
@@ -24,52 +24,182 @@ identity-service/
     MODULE_EXPANSION.md
     INTEGRATION.md
     nextsession.md
+  src/
+    application/
+    config/
+    domain/
+    infrastructure/
+    interfaces/
+    providers/
+    security/
+    lib.rs
+    main.rs
 ```
 
-Expected future implementation layout is documented in:
+## Implemented MVP Increment
 
-- `docs/ARCHITECTURE.md`
+Current executable scope:
 
-## How to Use This Repository Now
+- Axum HTTP service.
+- Local username/password registration.
+- Local username/password login.
+- Authenticated local password change.
+- Supabase provider exchange through the provider adapter boundary.
+- Central provider enable/disable configuration.
+- `internal_user_id` identity binding.
+- Session creation and revocation.
+- RS256 JWT access token issuance and verification.
+- Server-tracked refresh token rotation and reuse detection.
+- Logout and current-user endpoints.
 
-Read documents in this order:
+Current implementation limits:
 
-1. `Agent.md`
-2. `docs/ARCHITECTURE.md`
-3. `docs/SPEC.md`
-4. `docs/BUILD.md`
-5. `docs/TECH_STACK.md`
-6. `docs/MVP.md`
-7. `docs/MODULE_EXPANSION.md`
-8. `docs/INTEGRATION.md`
-9. `docs/nextsession.md`
+- Persistence is in memory and resets on process restart.
+- Supabase verification is a local fixture adapter that accepts a JSON payload shaped like a verified Supabase JWT claim set.
+- Real Supabase JWT/JWKS verification and PostgreSQL persistence are required before production deployment.
+- JWT revocation is stateless for external consumers; logout and password change revoke refresh-token state, while already issued access tokens remain valid until `exp`.
 
-Purpose of each document:
+## Prerequisites
 
-- `Agent.md` defines how AI agents must work in this repository.
-- `docs/ARCHITECTURE.md` defines system architecture and module boundaries.
-- `docs/SPEC.md` defines product and system requirements.
-- `docs/BUILD.md` defines build and usage guidance.
-- `docs/TECH_STACK.md` records the fixed technology stack decision.
-- `docs/MVP.md` defines the first minimum viable product.
-- `docs/MODULE_EXPANSION.md` defines how post-MVP modules must be added.
-- `docs/INTEGRATION.md` defines how other backends and gateways integrate.
-- `docs/nextsession.md` preserves context for the next AI-assisted session.
+- Rust toolchain with edition 2024 support.
+- Cargo.
+- OpenSSL CLI for generating local RSA development keys.
 
-## Current Validation Commands
+## Local Key Setup
 
-Use these commands to inspect repository state:
+Do not commit generated private keys.
 
 ```bash
-git status --short
-find . -maxdepth 3 -type f | sort
+mkdir -p secrets
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out secrets/jwt_private.pem
+openssl rsa -pubout -in secrets/jwt_private.pem -out secrets/jwt_public.pem
 ```
 
-Use this command to review the current commit history:
+The service reads key PEM files from these default paths:
+
+- `./secrets/jwt_private.pem`
+- `./secrets/jwt_public.pem`
+
+Alternatively, provide PEM contents directly through:
+
+- `IDENTITY_TOKEN_PRIVATE_KEY_PEM`
+- `IDENTITY_TOKEN_PUBLIC_KEY_PEM`
+
+## Required Environment
+
+Minimum local environment:
 
 ```bash
-git log --oneline
+export IDENTITY_REFRESH_TOKEN_HMAC_SECRET="replace-with-a-long-local-secret"
 ```
+
+Optional environment variables:
+
+```bash
+export IDENTITY_HTTP_HOST="127.0.0.1"
+export IDENTITY_HTTP_PORT="3000"
+export IDENTITY_TOKEN_PRIVATE_KEY_PEM_PATH="./secrets/jwt_private.pem"
+export IDENTITY_TOKEN_PUBLIC_KEY_PEM_PATH="./secrets/jwt_public.pem"
+export IDENTITY_TOKEN_KEY_ID="mvp-local-key"
+export IDENTITY_TOKEN_ISSUER="identity-service-local"
+export IDENTITY_TOKEN_AUDIENCE="platform-api"
+export IDENTITY_ACCESS_TOKEN_LIFETIME_SECONDS="900"
+export IDENTITY_REFRESH_TOKEN_LIFETIME_SECONDS="2592000"
+export IDENTITY_SESSION_LIFETIME_SECONDS="2592000"
+export IDENTITY_PROVIDER_LOCAL_PASSWORD_ENABLED="true"
+export IDENTITY_PROVIDER_SUPABASE_ENABLED="true"
+export IDENTITY_PROVIDER_SUPABASE_AUTO_PROVISION_ENABLED="true"
+export IDENTITY_PROVIDER_SUPABASE_PROJECT_URL="https://example.supabase.co"
+export IDENTITY_PROVIDER_SUPABASE_ISSUER="https://example.supabase.co/auth/v1"
+export IDENTITY_PROVIDER_SUPABASE_AUDIENCE="authenticated"
+```
+
+Production issuer values must be environment-unique and stable, for example:
+
+- `https://identity.example.com`
+- `urn:identity-service:prod`
+
+The default issuer is only for local development.
+
+## Run
+
+```bash
+cargo run
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:3000/health
+```
+
+## MVP API
+
+```text
+POST /v1/auth/register
+POST /v1/auth/login
+POST /v1/auth/password/change
+POST /v1/auth/supabase/exchange
+POST /v1/auth/refresh
+POST /v1/auth/logout
+GET  /v1/users/me
+GET  /health
+```
+
+Disabled providers keep their public routes registered and return `provider_disabled`.
+
+## Supabase Fixture Input
+
+Current Supabase adapter input is a JSON string passed as `access_token`.
+
+Example request body:
+
+```json
+{
+  "access_token": "{\"sub\":\"supabase-user-1\",\"exp\":4102444800,\"iss\":\"https://example.supabase.co/auth/v1\",\"aud\":\"authenticated\",\"email\":\"user@example.com\"}"
+}
+```
+
+This fixture exists only to exercise provider normalization and identity binding before real Supabase JWT verification is added.
+
+## Development Commands
+
+Format:
+
+```bash
+cargo fmt
+```
+
+Compile check:
+
+```bash
+cargo check
+```
+
+Tests:
+
+```bash
+cargo test
+```
+
+Whitespace check before commit:
+
+```bash
+git diff --check
+```
+
+## PostgreSQL Target
+
+PostgreSQL is still the required production persistence target because identity bindings, sessions, refresh tokens, and credential updates need transactional consistency.
+
+The next persistence increment should add:
+
+- Repository contracts owned by the application layer.
+- PostgreSQL implementations under infrastructure.
+- Migrations for internal users, external identities, local credentials, sessions, and refresh token records.
+- Transactional password-change and refresh-token rotation behavior.
+
+Do not add Redis to the MVP unless a specific runtime need appears.
 
 ## Git Workflow
 
@@ -81,198 +211,3 @@ git commit -m "feat: <describe current step>"
 ```
 
 Do not push unless explicitly requested.
-
-## Implementation Prerequisites
-
-Before Step 4 implementation begins, the following decisions are already fixed:
-
-- Programming language: Rust
-- Web framework: Axum
-- Package manager: Cargo
-- Database: PostgreSQL
-- Cache layer: no Redis in MVP
-- Token signing approach: JWT access tokens plus server-tracked refresh tokens
-- Test framework: Rust unit and integration tests through Cargo
-
-The following items still need implementation-time detail:
-
-- Local development strategy
-- Deployment target
-- Migration strategy
-
-These details should be recorded before production code is added.
-
-The fixed stack is documented in:
-
-- `docs/TECH_STACK.md`
-
-## Fixed Technology Decisions
-
-### Language and Framework
-
-- Rust with Axum is selected.
-- Other languages and frameworks are not active implementation targets.
-
-### Database
-
-- PostgreSQL is selected.
-- A relational database is required because identity, sessions, bindings, clients, and permissions require consistency and constraints.
-
-### Cache
-
-- Redis is excluded from the MVP.
-- Add Redis only after the MVP when rate limiting, cache, distributed locks, or high-volume session workflows require it.
-
-### Token Strategy
-
-- Keep access tokens short-lived.
-- Sign MVP JWT access tokens with RS256.
-- Include `kid` on signed access tokens.
-- Store refresh token state server-side.
-- Separate token issuance from session lifecycle.
-- Hash refresh tokens before storing them.
-- Session module owns refresh token records, families, rotation, reuse detection, and revocation.
-
-Implementation-time details still needed:
-
-- Key storage.
-- Key rotation plan.
-- Access token lifetime.
-
-### Identity Implementation Order
-
-Fixed MVP identity implementation order:
-
-1. Local username/password
-2. Local password change
-3. Supabase
-
-Post-MVP provider order:
-
-1. Delivery adapter contract
-2. Email delivery adapter module
-3. SMS delivery adapter module
-4. Email verification code provider
-5. SMS verification code provider
-6. OAuth2 generic provider
-7. GitHub
-8. Google
-9. Apple Sign In
-10. WeChat
-
-Reason:
-
-- Local username/password validates the internal identity, credential, session, and token foundation.
-- Local password change validates credential update and refresh token invalidation behavior.
-- Supabase validates the provider adapter and external identity binding model.
-- Supabase upstream email, phone, social, OAuth, and OIDC methods remain inside the single `supabase` provider boundary for the MVP.
-- Email and SMS should be added after the MVP because they require delivery infrastructure, vendor adapters, templates, retry policy, and abuse controls.
-- SMS and email vendors are delivery adapters, not identity providers.
-- Generic OAuth2 creates a reusable base for GitHub, Google, and other providers.
-- WeChat and Apple have platform-specific edge cases and should be implemented after core provider contracts are stable.
-
-## Future Local Development Guide
-
-When implementation starts, this document should be updated with:
-
-- Dependency installation command
-- Environment variable setup
-- Database migration command
-- Local server command
-- Test command
-- Lint command
-- Formatting command
-- API documentation command
-
-Example sections to add later:
-
-```text
-Install dependencies
-Configure environment
-Start database
-Run migrations
-Start service
-Run tests
-Run lint
-Build production artifact
-```
-
-## Environment Configuration Guidance
-
-Future configuration should be centralized.
-
-Expected configuration categories:
-
-- Service name
-- Runtime environment
-- HTTP host and port
-- Database connection
-- Cache connection
-- Token issuer
-- Token audience
-- Signing key or key provider
-- Refresh token policy
-- Session policy
-- Provider credentials
-- OAuth2 client registry settings
-- Observability settings
-
-Configuration rules:
-
-- Do not scatter provider secrets across modules.
-- Do not read environment variables directly from business logic.
-- Validate required settings at startup.
-- Keep sensitive values out of logs.
-
-## Testing Strategy
-
-Future tests should be organized by risk and module boundary.
-
-### Unit Tests
-
-Target:
-
-- Provider adapter normalization
-- Identity binding decisions
-- Session lifecycle policy
-- Token claim creation
-- Authorization decisions
-
-### Integration Tests
-
-Target:
-
-- Database repositories
-- Session persistence
-- Refresh token rotation
-- Provider callback handling with mocked providers
-- Token verification with real signing keys
-
-### Contract Tests
-
-Target:
-
-- Provider adapter interface behavior
-- OAuth2/OIDC endpoint compatibility
-- Gateway token verification expectations
-- Backend integration token claim compatibility
-- Public error response compatibility
-
-### End-to-End Tests
-
-Target:
-
-- Login to token issuance
-- Refresh token rotation
-- Logout and token invalidation
-- Account linking
-- Authorization check
-
-## Build Completion Criteria
-
-This document is complete for the current step when:
-
-- It states that no implementation build exists yet.
-- It explains how to inspect and use the documentation.
-- It records future implementation prerequisites.
-- It defines what must be added once implementation begins.

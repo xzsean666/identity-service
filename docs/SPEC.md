@@ -2,11 +2,11 @@
 
 ## Current Step
 
-Step 2 - Documentation.
+Step 4 - MVP implementation has started.
 
 This document specifies the Identity Platform / IAM Service behavior, scope, interfaces, data model, and development boundaries.
 
-No implementation code is included in this step.
+Implementation must follow `docs/MVP.md`. Post-MVP sections are design notes and must not be implemented until explicitly approved.
 
 ## Product Positioning
 
@@ -130,6 +130,8 @@ The platform-owned user identity.
 
 All authentication providers eventually resolve to an `internal_user_id`.
 
+MVP `internal_user_id` values are UUID v4 identifiers.
+
 ### External Identity
 
 An identity record from an external provider.
@@ -221,7 +223,8 @@ The Supabase provider adapter must:
 - Normalize Supabase identity into provider `supabase`.
 - Use the Supabase user identifier as the provider subject identifier.
 - Ignore which upstream Supabase method was used for this service's provider selection.
-- Accept only a Supabase access or session token in the MVP.
+- Accept a Supabase JWT access token in the MVP product contract.
+- Current Step 4 code uses a local Supabase fixture adapter until real JWT verification is added.
 - Store no Supabase provider token.
 - Return only allowlisted Supabase metadata.
 
@@ -450,15 +453,23 @@ Each provider adapter must expose a small, explicit behavior surface.
 
 ### Provider Adapter Input
 
-Input depends on provider type:
+MVP provider inputs:
 
-- OAuth2 authorization code
-- Provider access token
-- SMS code
-- Email verification code
-- Supabase session token
-- WeChat login code
-- Apple identity token
+- Local username and password.
+- Supabase JWT access token.
+
+Current Step 4 implementation note:
+
+- The Supabase adapter accepts a local JSON fixture payload through the `access_token` field until real Supabase JWT verification is implemented.
+
+Post-MVP provider input examples:
+
+- OAuth2 authorization code.
+- Provider access token.
+- SMS code.
+- Email verification code.
+- WeChat login code.
+- Apple identity token.
 
 ### Provider Adapter Output
 
@@ -489,13 +500,14 @@ The system must support centralized feature toggles for optional providers and c
 Required behavior:
 
 - Provider enablement must be controlled from centralized configuration.
-- Disabled providers must not register public login routes.
+- MVP public auth routes remain registered.
 - Disabled providers must not execute provider-specific verification logic.
-- Disabled provider usage must return an explicit provider-disabled error.
+- Disabled provider usage must return an explicit `provider_disabled` error.
 - Business logic must not read environment variables directly to decide feature availability.
 - Configuration loads toggles.
-- Startup builds the enabled provider registry.
-- Router registers routes only for enabled providers.
+- Startup builds the provider registry with configured availability.
+- MVP public auth routes remain registered and disabled provider handlers return `provider_disabled`.
+- Post-MVP module-specific routes may be omitted when a module is disabled if the module contract documents that behavior.
 - Authentication uses the provider registry and rejects disabled provider usage.
 - Provider adapters expose descriptors but do not read environment variables or feature toggles directly.
 
@@ -601,11 +613,13 @@ Required behavior:
 
 Required behavior:
 
-- Unique client identifier
-- Allowed redirect URIs
-- Allowed scopes
-- Allowed grant types
-- Client status
+- MVP: static client identifier
+- MVP: JWT audience from `tokens.audience`
+- MVP: trusted origin when needed
+- Post-MVP: redirect URIs
+- Post-MVP: allowed scopes
+- Post-MVP: allowed grant types
+- Post-MVP: client status
 
 ### Authorization Records
 
@@ -659,10 +673,11 @@ The MVP uses static client context from centralized configuration.
 Required configuration:
 
 - client identifier
-- allowed audience
 - trusted origin when needed
 
 The client application registry is post-MVP.
+
+`tokens.audience` is the single MVP JWT audience source.
 
 ## Non-Functional Requirements
 
@@ -750,12 +765,11 @@ The client application registry is post-MVP.
 - Add risk control.
 - Expand audit logging.
 
-## Acceptance Criteria for Documentation Step
+## Historical Documentation Criteria
 
-Step 2 is complete when:
+Step 2 was complete when:
 
 - `docs/SPEC.md` exists.
 - `docs/BUILD.md` exists.
 - System capabilities are specified.
 - Initial build and usage guidance is documented.
-- No implementation code has been written.
