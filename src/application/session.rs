@@ -1,4 +1,5 @@
 use chrono::{Duration, Utc};
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
@@ -9,13 +10,45 @@ use crate::{
         token::TokenPair,
         user::InternalUser,
     },
-    infrastructure::memory::SharedState,
     security::RefreshTokenHasher,
 };
 
+pub trait SessionRepository: Send + Sync {
+    fn create_session_with_refresh(
+        &self,
+        session: Session,
+        refresh_token: RefreshTokenRecord,
+    ) -> Result<(Session, RefreshTokenRecord), AppError>;
+
+    fn exchange_refresh(
+        &self,
+        token_hash: &str,
+        next_token_hash: String,
+        refresh_token_lifetime_seconds: i64,
+        now: chrono::DateTime<Utc>,
+    ) -> Result<(Session, RefreshTokenRecord), AppError>;
+
+    fn revoke_session(&self, session_id: Uuid, now: chrono::DateTime<Utc>) -> Result<(), AppError>;
+
+    fn rotate_all_user_refresh_families(
+        &self,
+        internal_user_id: Uuid,
+        current_session_id: Uuid,
+        new_token_hash: String,
+        refresh_token_lifetime_seconds: i64,
+        now: chrono::DateTime<Utc>,
+    ) -> Result<RefreshTokenRecord, AppError>;
+
+    fn active_session_by_id(
+        &self,
+        session_id: Uuid,
+        now: chrono::DateTime<Utc>,
+    ) -> Result<Session, AppError>;
+}
+
 #[derive(Clone)]
 pub struct SessionService {
-    state: SharedState,
+    repository: Arc<dyn SessionRepository>,
     session_config: SessionConfig,
     client_config: ClientConfig,
     refresh_token_hasher: RefreshTokenHasher,
@@ -23,13 +56,13 @@ pub struct SessionService {
 
 impl SessionService {
     pub fn new(
-        state: SharedState,
+        repository: Arc<dyn SessionRepository>,
         session_config: SessionConfig,
         client_config: ClientConfig,
         refresh_token_hasher: RefreshTokenHasher,
     ) -> Self {
         Self {
-            state,
+            repository,
             session_config,
             client_config,
             refresh_token_hasher,
@@ -62,12 +95,8 @@ impl SessionService {
             now,
         )?;
 
-        let mut state = self.state.lock();
-        state.sessions.insert(session.session_id, session.clone());
-        state
-            .refresh_tokens_by_hash
-            .insert(refresh_token.token_hash.clone(), refresh_token.clone());
-        Ok((session, refresh_token))
+        self.repository
+            .create_session_with_refresh(session, refresh_token)
     }
 
     pub fn exchange_refresh_token(
@@ -76,91 +105,18 @@ impl SessionService {
         next_refresh_token_secret: String,
     ) -> Result<(Session, RefreshTokenRecord), AppError> {
         let token_hash = self.refresh_token_hasher.hash(refresh_token)?;
+        let next_token_hash = self.refresh_token_hasher.hash(&next_refresh_token_secret)?;
         let now = Utc::now();
-        let mut state = self.state.lock();
-
-        let existing = state
-            .refresh_tokens_by_hash
-            .get(&token_hash)
-            .cloned()
-            .ok_or(AppError::TokenInvalid)?;
-
-        if existing.status == RefreshTokenStatus::Consumed {
-            let family_id = existing.token_family_id;
-            for record in state.refresh_tokens_by_hash.values_mut() {
-                if record.token_family_id == family_id {
-                    if record.refresh_token_id == existing.refresh_token_id {
-                        record.status = RefreshTokenStatus::Reused;
-                    } else {
-                        record.status = RefreshTokenStatus::Revoked;
-                    }
-                    record.revoked_at = Some(now);
-                }
-            }
-            return Err(AppError::RefreshTokenReused);
-        }
-
-        if existing.status != RefreshTokenStatus::Active {
-            return Err(AppError::TokenInvalid);
-        }
-        if existing.expires_at <= now {
-            if let Some(record) = state.refresh_tokens_by_hash.get_mut(&token_hash) {
-                record.status = RefreshTokenStatus::Expired;
-            }
-            return Err(AppError::TokenInvalid);
-        }
-
-        let session_id = existing.session_id;
-        let family_id = existing.token_family_id;
-        let internal_user_id = existing.internal_user_id;
-
-        let session = state
-            .sessions
-            .get(&session_id)
-            .cloned()
-            .ok_or(AppError::TokenInvalid)?;
-        if session.status != SessionStatus::Active || session.expires_at <= now {
-            return Err(AppError::TokenInvalid);
-        }
-
-        let existing_record = state
-            .refresh_tokens_by_hash
-            .get_mut(&token_hash)
-            .ok_or(AppError::TokenInvalid)?;
-        existing_record.status = RefreshTokenStatus::Consumed;
-        existing_record.consumed_at = Some(now);
-
-        let new_record = self.create_refresh_record(
-            session_id,
-            internal_user_id,
-            family_id,
-            next_refresh_token_secret,
+        self.repository.exchange_refresh(
+            &token_hash,
+            next_token_hash,
+            self.session_config.refresh_token_lifetime_seconds,
             now,
-        )?;
-        state
-            .refresh_tokens_by_hash
-            .insert(new_record.token_hash.clone(), new_record.clone());
-        Ok((session, new_record))
+        )
     }
 
     pub fn revoke_session(&self, session_id: Uuid) -> Result<(), AppError> {
-        let now = Utc::now();
-        let mut state = self.state.lock();
-        {
-            let session = state
-                .sessions
-                .get_mut(&session_id)
-                .ok_or(AppError::Unauthorized)?;
-            session.status = SessionStatus::Revoked;
-            session.revoked_at = Some(now);
-        }
-        for refresh_record in state.refresh_tokens_by_hash.values_mut() {
-            if refresh_record.session_id == session_id {
-                refresh_record.status = RefreshTokenStatus::Revoked;
-                refresh_record.revoked_at = Some(now);
-            }
-        }
-        Ok(())
+        self.repository.revoke_session(session_id, Utc::now())
     }
 
     pub fn rotate_all_user_refresh_families(
@@ -170,49 +126,18 @@ impl SessionService {
         new_refresh_token_secret: String,
     ) -> Result<RefreshTokenRecord, AppError> {
         let now = Utc::now();
-        let mut state = self.state.lock();
-        let session = state
-            .sessions
-            .get(&current_session_id)
-            .cloned()
-            .ok_or(AppError::Unauthorized)?;
-        if session.internal_user_id != internal_user_id
-            || session.status != SessionStatus::Active
-            || session.expires_at <= now
-        {
-            return Err(AppError::Unauthorized);
-        }
-
-        for refresh_record in state.refresh_tokens_by_hash.values_mut() {
-            if refresh_record.internal_user_id == internal_user_id {
-                refresh_record.status = RefreshTokenStatus::Revoked;
-                refresh_record.revoked_at = Some(now);
-            }
-        }
-        let new_record = self.create_refresh_record(
-            current_session_id,
+        let new_token_hash = self.refresh_token_hasher.hash(&new_refresh_token_secret)?;
+        self.repository.rotate_all_user_refresh_families(
             internal_user_id,
-            Uuid::new_v4(),
-            new_refresh_token_secret,
+            current_session_id,
+            new_token_hash,
+            self.session_config.refresh_token_lifetime_seconds,
             now,
-        )?;
-        state
-            .refresh_tokens_by_hash
-            .insert(new_record.token_hash.clone(), new_record.clone());
-        Ok(new_record)
+        )
     }
 
     pub fn session_by_id(&self, session_id: Uuid) -> Result<Session, AppError> {
-        let state = self.state.lock();
-        let session = state
-            .sessions
-            .get(&session_id)
-            .cloned()
-            .ok_or(AppError::Unauthorized)?;
-        if session.status != SessionStatus::Active || session.expires_at <= Utc::now() {
-            return Err(AppError::Unauthorized);
-        }
-        Ok(session)
+        self.repository.active_session_by_id(session_id, Utc::now())
     }
 
     pub fn token_pair(
@@ -255,11 +180,11 @@ impl SessionService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::user::InternalUser;
+    use crate::{domain::user::InternalUser, infrastructure::memory::InMemorySessionRepository};
 
-    fn session_service(state: SharedState) -> SessionService {
+    fn session_service(repository: Arc<dyn SessionRepository>) -> SessionService {
         SessionService::new(
-            state,
+            repository,
             SessionConfig {
                 refresh_token_lifetime_seconds: 3600,
                 session_lifetime_seconds: 3600,
@@ -275,7 +200,7 @@ mod tests {
     #[test]
     fn refresh_exchange_rotates_token_and_detects_reuse() {
         let state = crate::infrastructure::memory::InMemoryState::shared();
-        let service = session_service(state.clone());
+        let service = session_service(Arc::new(InMemorySessionRepository::new(state.clone())));
         let user = InternalUser::new_active(Utc::now());
 
         let (session, first_record) = service

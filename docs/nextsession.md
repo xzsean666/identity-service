@@ -257,6 +257,8 @@ Completed Step 4 work:
 13. Supabase provider adapter with JWT/JWKS verification.
 14. PostgreSQL MVP schema migration files.
 15. Unit tests and HTTP integration tests for MVP flows.
+16. Repository contracts for identity binding, local credentials, and sessions.
+17. In-memory repository implementations behind those contracts.
 
 Open implementation decisions:
 
@@ -281,12 +283,11 @@ Fixed decisions:
 
 Next implementation increment:
 
-1. Add repository contracts owned by application services.
-2. Add PostgreSQL repository implementations.
-3. Wire runtime configuration to select memory or PostgreSQL persistence.
-4. Move password change and refresh rotation into PostgreSQL transactions.
-5. Add database integration tests.
-6. Add Supabase JWKS caching with conservative refresh behavior.
+1. Add PostgreSQL repository implementations for the existing repository contracts.
+2. Wire runtime configuration to select memory or PostgreSQL persistence.
+3. Move password change and refresh rotation into PostgreSQL transactions.
+4. Add database integration tests.
+5. Add Supabase JWKS caching with conservative refresh behavior.
 
 ### Post-MVP Provider Increment
 

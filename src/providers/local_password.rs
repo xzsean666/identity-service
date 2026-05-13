@@ -11,7 +11,6 @@ use uuid::Uuid;
 use crate::{
     application::error::AppError,
     domain::identity::NormalizedExternalIdentity,
-    infrastructure::memory::SharedState,
     providers::{
         IdentityProviderAdapter, ProviderDescriptor, ProviderEntryKind, ProviderVerificationRequest,
     },
@@ -24,8 +23,8 @@ pub struct LocalCredential {
     pub username: String,
     pub normalized_username: String,
     pub password_hash: String,
-    pub password_hash_algorithm: &'static str,
-    pub password_hash_parameters: &'static str,
+    pub password_hash_algorithm: String,
+    pub password_hash_parameters: String,
     pub status: LocalCredentialStatus,
     pub created_at: chrono::DateTime<Utc>,
     pub updated_at: chrono::DateTime<Utc>,
@@ -37,15 +36,42 @@ pub enum LocalCredentialStatus {
     Disabled,
 }
 
+pub trait LocalCredentialRepository: Send + Sync {
+    fn create_credential(
+        &self,
+        normalized_username: &str,
+        credential: LocalCredential,
+    ) -> Result<LocalCredential, AppError>;
+
+    fn find_by_normalized_username(
+        &self,
+        normalized_username: &str,
+    ) -> Result<Option<LocalCredential>, AppError>;
+
+    fn find_by_internal_user_id(
+        &self,
+        internal_user_id: Uuid,
+    ) -> Result<Option<LocalCredential>, AppError>;
+
+    fn update_for_internal_user_id(
+        &self,
+        internal_user_id: Uuid,
+        credential: LocalCredential,
+    ) -> Result<(), AppError>;
+}
+
 #[derive(Clone)]
 pub struct LocalPasswordProvider {
-    state: SharedState,
+    credential_repository: Arc<dyn LocalCredentialRepository>,
     enabled: bool,
 }
 
 impl LocalPasswordProvider {
-    pub fn new(state: SharedState, enabled: bool) -> Self {
-        Self { state, enabled }
+    pub fn new(credential_repository: Arc<dyn LocalCredentialRepository>, enabled: bool) -> Self {
+        Self {
+            credential_repository,
+            enabled,
+        }
     }
 
     pub fn normalize_username(username: &str) -> String {
@@ -83,25 +109,15 @@ impl LocalPasswordProvider {
             username: username.trim().to_owned(),
             normalized_username: normalized_username.clone(),
             password_hash: Self::hash_password(password)?,
-            password_hash_algorithm: "argon2id",
-            password_hash_parameters: "phc_string",
+            password_hash_algorithm: "argon2id".to_owned(),
+            password_hash_parameters: "phc_string".to_owned(),
             status: LocalCredentialStatus::Active,
             created_at: now,
             updated_at: now,
         };
 
-        let mut state = self.state.lock();
-        if state
-            .local_credentials_by_username
-            .contains_key(&normalized_username)
-        {
-            return Err(AppError::IdentityConflict);
-        }
-
-        state
-            .local_credentials_by_username
-            .insert(normalized_username, credential.clone());
-        Ok(credential)
+        self.credential_repository
+            .create_credential(&normalized_username, credential)
     }
 
     pub fn change_password(
@@ -111,11 +127,9 @@ impl LocalPasswordProvider {
         new_password: &str,
     ) -> Result<(), AppError> {
         validate_password(new_password)?;
-        let mut state = self.state.lock();
-        let credential = state
-            .local_credentials_by_username
-            .values_mut()
-            .find(|credential| credential.internal_user_id == internal_user_id)
+        let mut credential = self
+            .credential_repository
+            .find_by_internal_user_id(internal_user_id)?
             .ok_or(AppError::InvalidCredentials)?;
 
         if credential.status != LocalCredentialStatus::Active {
@@ -124,7 +138,8 @@ impl LocalPasswordProvider {
         Self::verify_password(current_password, &credential.password_hash)?;
         credential.password_hash = Self::hash_password(new_password)?;
         credential.updated_at = Utc::now();
-        Ok(())
+        self.credential_repository
+            .update_for_internal_user_id(internal_user_id, credential)
     }
 }
 
@@ -149,10 +164,9 @@ impl IdentityProviderAdapter for LocalPasswordProvider {
         validate_username_and_password(&username, &password)?;
 
         let normalized_username = Self::normalize_username(&username);
-        let state = self.state.lock();
-        let credential = state
-            .local_credentials_by_username
-            .get(&normalized_username)
+        let credential = self
+            .credential_repository
+            .find_by_normalized_username(&normalized_username)?
             .ok_or(AppError::InvalidCredentials)?;
 
         if credential.status != LocalCredentialStatus::Active {
@@ -186,7 +200,7 @@ fn validate_password(password: &str) -> Result<(), AppError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::memory::InMemoryState;
+    use crate::infrastructure::memory::{InMemoryLocalCredentialRepository, InMemoryState};
 
     #[test]
     fn password_hash_verifies_correct_password_only() {
@@ -201,7 +215,11 @@ mod tests {
 
     #[test]
     fn change_password_requires_current_password_and_updates_hash() {
-        let provider = LocalPasswordProvider::new(InMemoryState::shared(), true);
+        let state = InMemoryState::shared();
+        let provider = LocalPasswordProvider::new(
+            Arc::new(InMemoryLocalCredentialRepository::new(state.clone())),
+            true,
+        );
         let internal_user_id = Uuid::new_v4();
         provider
             .create_credential_for_user(internal_user_id, "Alice", "old-password")
@@ -216,7 +234,7 @@ mod tests {
             .change_password(internal_user_id, "old-password", "new-password")
             .unwrap();
 
-        let state = provider.state.lock();
+        let state = state.lock();
         let credential = state
             .local_credentials_by_username
             .get("alice")

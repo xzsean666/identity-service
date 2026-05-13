@@ -244,8 +244,8 @@ The migration creates only the current MVP persistence tables: `internal_users`,
 
 The next persistence increment should add:
 
-- Repository contracts owned by the application layer.
 - PostgreSQL implementations under infrastructure.
+- Runtime wiring from `IDENTITY_PERSISTENCE_BACKEND=postgres` to PostgreSQL repositories.
 - Transactional password-change and refresh-token rotation behavior.
 
 Do not add Redis to the MVP unless a specific runtime need appears.

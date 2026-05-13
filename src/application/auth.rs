@@ -61,7 +61,7 @@ impl AuthService {
         if !self.local_password_provider.descriptor().enabled {
             return Err(AppError::ProviderDisabled);
         }
-        let user = self.identity_binding.create_active_user();
+        let user = self.identity_binding.create_active_user()?;
         let credential = self.local_password_provider.create_credential_for_user(
             user.internal_user_id,
             &username,

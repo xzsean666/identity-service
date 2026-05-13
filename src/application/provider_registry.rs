@@ -54,14 +54,18 @@ mod tests {
 
     use super::*;
     use crate::{
-        infrastructure::memory::InMemoryState,
+        infrastructure::memory::{InMemoryLocalCredentialRepository, InMemoryState},
         providers::{IdentityProviderAdapter, local_password::LocalPasswordProvider},
     };
 
     #[test]
     fn disabled_provider_returns_provider_disabled() {
-        let provider: Arc<dyn IdentityProviderAdapter> =
-            Arc::new(LocalPasswordProvider::new(InMemoryState::shared(), false));
+        let provider: Arc<dyn IdentityProviderAdapter> = Arc::new(LocalPasswordProvider::new(
+            Arc::new(InMemoryLocalCredentialRepository::new(
+                InMemoryState::shared(),
+            )),
+            false,
+        ));
         let registry = ProviderRegistry::new(vec![provider]);
 
         assert!(matches!(

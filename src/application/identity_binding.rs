@@ -1,30 +1,53 @@
 use chrono::Utc;
+use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::{
     application::error::AppError,
     domain::{
-        identity::{BindingMode, ExternalIdentity, NormalizedExternalIdentity},
+        identity::{BindingMode, NormalizedExternalIdentity},
         user::{AccountStatus, InternalUser},
     },
-    infrastructure::memory::SharedState,
 };
+
+pub trait IdentityRepository: Send + Sync {
+    fn insert_active_user(&self, user: InternalUser) -> Result<(), AppError>;
+
+    fn bound_user(
+        &self,
+        external_identity: &NormalizedExternalIdentity,
+    ) -> Result<Option<InternalUser>, AppError>;
+
+    fn bind_new_active_user(
+        &self,
+        external_identity: NormalizedExternalIdentity,
+        now: chrono::DateTime<Utc>,
+    ) -> Result<InternalUser, AppError>;
+
+    fn bind_existing_user(
+        &self,
+        internal_user_id: Uuid,
+        external_identity: NormalizedExternalIdentity,
+        now: chrono::DateTime<Utc>,
+    ) -> Result<InternalUser, AppError>;
+
+    fn user_by_id(&self, internal_user_id: Uuid) -> Result<InternalUser, AppError>;
+}
 
 #[derive(Clone)]
 pub struct IdentityBindingService {
-    state: SharedState,
+    repository: Arc<dyn IdentityRepository>,
 }
 
 impl IdentityBindingService {
-    pub fn new(state: SharedState) -> Self {
-        Self { state }
+    pub fn new(repository: Arc<dyn IdentityRepository>) -> Self {
+        Self { repository }
     }
 
-    pub fn create_active_user(&self) -> InternalUser {
+    pub fn create_active_user(&self) -> Result<InternalUser, AppError> {
         let user = InternalUser::new_active(Utc::now());
-        let mut state = self.state.lock();
-        state.users.insert(user.internal_user_id, user.clone());
-        user
+        self.repository.insert_active_user(user.clone())?;
+        Ok(user)
     }
 
     pub fn resolve_identity(
@@ -32,21 +55,9 @@ impl IdentityBindingService {
         external_identity: NormalizedExternalIdentity,
         binding_mode: BindingMode,
     ) -> Result<InternalUser, AppError> {
-        let key = (
-            external_identity.provider_name.clone(),
-            external_identity.provider_subject.clone(),
-        );
         let now = Utc::now();
-        let mut state = self.state.lock();
 
-        if let Some(binding) = state.identities_by_provider_subject.get(&key) {
-            let user = state
-                .users
-                .get(&binding.internal_user_id)
-                .cloned()
-                .ok_or_else(|| {
-                    AppError::Internal("identity binding points to missing user".to_owned())
-                })?;
+        if let Some(user) = self.repository.bound_user(&external_identity)? {
             if user.account_status != AccountStatus::Active {
                 return Err(AppError::AccountDisabled);
             }
@@ -56,53 +67,24 @@ impl IdentityBindingService {
         match binding_mode {
             BindingMode::LoginOnly => Err(AppError::InvalidCredentials),
             BindingMode::RegisterOrLogin => {
-                let user = InternalUser::new_active(now);
-                let binding = ExternalIdentity {
-                    provider_name: external_identity.provider_name,
-                    provider_subject: external_identity.provider_subject,
-                    internal_user_id: user.internal_user_id,
-                    provider_metadata: external_identity.provider_metadata,
-                    created_at: now,
-                    updated_at: now,
-                };
-                state.users.insert(user.internal_user_id, user.clone());
-                state.identities_by_provider_subject.insert(key, binding);
-                Ok(user)
+                self.repository.bind_new_active_user(external_identity, now)
             }
             BindingMode::LinkToExisting(internal_user_id) => {
-                let user = state
-                    .users
-                    .get(&internal_user_id)
-                    .cloned()
-                    .ok_or(AppError::Unauthorized)?;
-                let binding = ExternalIdentity {
-                    provider_name: external_identity.provider_name,
-                    provider_subject: external_identity.provider_subject,
-                    internal_user_id,
-                    provider_metadata: external_identity.provider_metadata,
-                    created_at: now,
-                    updated_at: now,
-                };
-                state.identities_by_provider_subject.insert(key, binding);
-                Ok(user)
+                self.repository
+                    .bind_existing_user(internal_user_id, external_identity, now)
             }
         }
     }
 
     pub fn user_by_id(&self, internal_user_id: Uuid) -> Result<InternalUser, AppError> {
-        let state = self.state.lock();
-        state
-            .users
-            .get(&internal_user_id)
-            .cloned()
-            .ok_or(AppError::Unauthorized)
+        self.repository.user_by_id(internal_user_id)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::infrastructure::memory::InMemoryState;
+    use crate::infrastructure::memory::{InMemoryIdentityRepository, InMemoryState};
 
     fn test_identity(subject: &str) -> NormalizedExternalIdentity {
         NormalizedExternalIdentity {
@@ -116,7 +98,9 @@ mod tests {
 
     #[test]
     fn register_or_login_creates_and_reuses_internal_user() {
-        let service = IdentityBindingService::new(InMemoryState::shared());
+        let service = IdentityBindingService::new(Arc::new(InMemoryIdentityRepository::new(
+            InMemoryState::shared(),
+        )));
         let identity = test_identity("external-user-1");
 
         let created = service
@@ -131,7 +115,9 @@ mod tests {
 
     #[test]
     fn login_only_rejects_unbound_identity() {
-        let service = IdentityBindingService::new(InMemoryState::shared());
+        let service = IdentityBindingService::new(Arc::new(InMemoryIdentityRepository::new(
+            InMemoryState::shared(),
+        )));
 
         assert!(matches!(
             service.resolve_identity(test_identity("missing"), BindingMode::LoginOnly),
