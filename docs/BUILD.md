@@ -21,6 +21,7 @@ identity-service/
     BUILD.md
     TECH_STACK.md
     MVP.md
+    MODULE_EXPANSION.md
     nextsession.md
 ```
 
@@ -38,7 +39,8 @@ Read documents in this order:
 4. `docs/BUILD.md`
 5. `docs/TECH_STACK.md`
 6. `docs/MVP.md`
-7. `docs/nextsession.md`
+7. `docs/MODULE_EXPANSION.md`
+8. `docs/nextsession.md`
 
 Purpose of each document:
 
@@ -48,6 +50,7 @@ Purpose of each document:
 - `docs/BUILD.md` defines build and usage guidance.
 - `docs/TECH_STACK.md` records the fixed technology stack decision.
 - `docs/MVP.md` defines the first minimum viable product.
+- `docs/MODULE_EXPANSION.md` defines how post-MVP modules must be added.
 - `docs/nextsession.md` preserves context for the next AI-assisted session.
 
 ## Current Validation Commands

@@ -594,6 +594,8 @@ The system must:
 - Files should avoid mixed responsibilities.
 - Naming must be descriptive.
 - Dependencies must be explicit.
+- Post-MVP capabilities must follow `docs/MODULE_EXPANSION.md`.
+- New modules must use explicit extension points instead of modifying core flows directly.
 
 ### Reliability
 

@@ -335,3 +335,7 @@ After the MVP, add modules in this order only when needed:
 SMS and email vendors are delivery adapters, not identity providers.
 
 Changing a delivery vendor must not change authentication, identity binding, session, or token modules.
+
+All post-MVP modules must follow:
+
+- `docs/MODULE_EXPANSION.md`

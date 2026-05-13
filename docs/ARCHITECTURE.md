@@ -70,6 +70,7 @@ identity-service/
     BUILD.md
     TECH_STACK.md
     MVP.md
+    MODULE_EXPANSION.md
     nextsession.md
   src/
     application/
@@ -991,6 +992,20 @@ Recommended order:
 7. Risk control and audit expansion.
 
 ## Architecture Boundaries
+
+Detailed module expansion rules are defined in:
+
+- `docs/MODULE_EXPANSION.md`
+
+Post-MVP capabilities must be added through explicit extension points:
+
+- Identity provider modules.
+- Delivery adapter modules.
+- Verification code modules.
+- Authorization modules.
+- Protocol surface modules.
+
+New modules must not rewrite MVP core authentication, identity binding, session, or token behavior.
 
 Provider adapters may:
 

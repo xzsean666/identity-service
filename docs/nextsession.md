@@ -21,6 +21,7 @@ Repository state:
 - Architecture, specification, build guidance, and AI agent workflow are documented.
 - Fixed technology stack decision has been documented.
 - MVP scope has been documented.
+- Module expansion rules have been documented.
 - Implementation has not started.
 
 Current completed workflow steps:
@@ -173,6 +174,24 @@ Completed content:
 - MVP acceptance criteria.
 - Post-MVP provider roadmap.
 
+### Module Expansion Rules
+
+File:
+
+- `docs/MODULE_EXPANSION.md`
+
+Completed content:
+
+- Locked MVP core.
+- Identity provider extension point.
+- Delivery adapter extension point.
+- Verification code extension point.
+- Authorization extension point.
+- Protocol surface extension point.
+- Module addition checklist.
+- Configuration rules.
+- Dependency direction rules.
+
 ## Pending Tasks
 
 ### Step 4 - Implementation Preparation
@@ -262,11 +281,12 @@ For the next AI session:
 2. Read `docs/ARCHITECTURE.md`.
 3. Read `docs/SPEC.md`.
 4. Read `docs/BUILD.md`.
-5. Confirm whether the user has approved Step 4 implementation.
-6. If implementation is approved, use Rust, Axum, Cargo, PostgreSQL, Argon2id, JWT access tokens, and server-tracked refresh tokens.
-7. Update `docs/BUILD.md` with stack-specific commands before or during implementation.
-8. Create the implementation skeleton in small increments.
-9. Commit each major step.
+5. Read `docs/MODULE_EXPANSION.md`.
+6. Confirm whether the user has approved Step 4 implementation.
+7. If implementation is approved, use Rust, Axum, Cargo, PostgreSQL, Argon2id, JWT access tokens, and server-tracked refresh tokens.
+8. Update `docs/BUILD.md` with stack-specific commands before or during implementation.
+9. Create the implementation skeleton in small increments.
+10. Commit each major step.
 
 ## Risks and Unknowns
 
@@ -339,12 +359,15 @@ Current known commits:
 - `feat: add system documentation`
 - `feat: add context handoff documentation`
 - `feat: document technology stack and mvp scope`
+- `feat: lock rust stack and mvp boundary`
+- `feat: add password change and supabase auth boundary`
+- `feat: document verification delivery adapters`
 
 This documentation hardening should be committed with:
 
 ```bash
 git add .
-git commit -m "feat: lock rust stack and mvp boundary"
+git commit -m "feat: document module expansion rules"
 ```
 
 ## Handoff Completion Criteria

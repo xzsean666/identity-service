@@ -143,6 +143,7 @@ Required documents:
 - `docs/BUILD.md` - build and usage instructions
 - `docs/TECH_STACK.md` - fixed technology stack decision
 - `docs/MVP.md` - minimum viable product scope and acceptance criteria
+- `docs/MODULE_EXPANSION.md` - module extension rules for post-MVP capabilities
 - `docs/nextsession.md` - context handoff for future sessions
 
 ## Git Workflow
