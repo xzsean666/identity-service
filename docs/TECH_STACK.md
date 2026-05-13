@@ -2,47 +2,59 @@
 
 ## Current Step
 
-Documentation update.
+Documentation hardening.
 
-This document records the recommended technology stack for the Identity Platform / IAM Service.
+This document records the fixed technology stack for the Identity Platform / IAM Service.
 
 No implementation code is included in this step.
 
-## Recommendation
+## Locked Decision
 
-Recommended default stack:
+The implementation language is Rust.
+
+This is fixed and is not an open question.
+
+AI agents must not reopen the language decision unless the user explicitly asks to change the stack.
+
+## Selected MVP Stack
+
+The MVP stack is:
 
 - Language: Rust
 - HTTP framework: Axum
 - Async runtime: Tokio
 - Database: PostgreSQL
-- Database access: SQLx or an equivalent explicit query layer
-- Cache: Redis, optional after the first MVP milestone
+- Database access: SQLx
 - Password hashing: Argon2id
-- Token format: JWT access token plus server-tracked refresh token state
+- Access token format: JWT
+- Refresh token strategy: server-tracked refresh token records
 - Configuration: centralized typed configuration loaded at startup
 
-Decision status:
+Redis is not part of the MVP.
 
-- Recommended for implementation.
-- Not yet implemented.
-- Can be revisited before Step 4 if the user prioritizes delivery speed over long-term service correctness.
+Redis may be added after the MVP for rate limiting, cache, distributed locks, or high-volume session workflows.
 
-## Why Rust Fits This Project
+## Non-Selected Stacks
 
-Rust is a strong fit for this project because IAM services are security-sensitive infrastructure.
+TypeScript, NestJS, Go, Java, Kotlin, Python, and other stacks are not active implementation targets for this project.
 
-Important project needs:
+They should not be proposed again during normal implementation planning.
+
+## Why Rust Is Fixed
+
+This project is identity infrastructure.
+
+The implementation needs:
 
 - Strong compile-time checks.
 - Explicit error handling.
 - Predictable runtime behavior.
-- Low memory overhead.
+- Memory safety.
 - Good concurrency safety.
 - Clear module boundaries.
 - Fewer hidden side effects.
 
-These match the repository's AI-oriented architecture principles:
+These requirements match the repository's AI-oriented architecture principles:
 
 - Explicit dependencies.
 - Local understandability.
@@ -50,121 +62,36 @@ These match the repository's AI-oriented architecture principles:
 - Controlled complexity.
 - No hidden global state.
 
-Rust also fits the long-term direction of this service:
+Rust is selected because identity, session, token, and authorization logic must stay precise over time.
 
-- Token verification can become high-volume.
-- Session and refresh token logic must remain precise.
-- Provider adapters need strict input and output contracts.
-- Authorization logic benefits from strongly typed decisions.
+## Why Axum Is Fixed
 
-## Why Axum Fits This Project
-
-Axum is a good HTTP framework choice because:
+Axum is selected as the HTTP framework because:
 
 - Routing is explicit.
 - Request extraction is declarative.
 - Error handling can stay predictable.
 - Middleware can use the Tower ecosystem.
-- It does not force a large application framework structure.
+- The framework does not force a large application structure.
 
-This matches the goal of keeping each module understandable in isolation.
+This supports the repository goal of keeping each module understandable in isolation.
 
-## Main Tradeoffs
+## Database Decision
 
-### Rust Advantages
-
-- Better fit for a security-sensitive core service.
-- Strong type system helps protect identity, session, and authorization boundaries.
-- Good performance and resource usage for gateway and microservice integration.
-- Explicitness helps AI agents reason about code across sessions.
-
-### Rust Costs
-
-- MVP implementation may take longer than TypeScript.
-- Some third-party provider SDKs may be less mature than JavaScript/TypeScript SDKs.
-- OAuth2/OIDC provider mode may require careful library selection and more contract testing.
-- Developer onboarding can be slower if the team is not comfortable with Rust.
-
-## TypeScript / NestJS Alternative
-
-TypeScript with NestJS is the best alternative if the main priority is fastest MVP delivery.
-
-Advantages:
-
-- Faster scaffolding.
-- Broad OAuth and provider SDK ecosystem.
-- Supabase JavaScript examples and SDK support are first-class.
-- NestJS provides a conventional application architecture out of the box.
-
-Costs:
-
-- More runtime behavior can remain implicit.
-- Type guarantees are weaker than Rust at service boundaries.
-- Dependency and framework abstraction layers can grow quickly.
-
-## Decision Rule
-
-Use Rust when:
-
-- This service is expected to become long-lived identity infrastructure.
-- Security, correctness, and predictable behavior are more important than fastest first demo.
-- The team is willing to accept slower early implementation for a stronger core.
-
-Use TypeScript/NestJS when:
-
-- The team needs the fastest possible MVP.
-- Most contributors are already TypeScript-focused.
-- Supabase integration speed matters more than owning the service core cleanly.
-
-Current recommendation:
-
-- Use Rust for this project.
-- Keep the MVP narrow to control Rust implementation cost.
-
-## Recommended MVP Stack
-
-For the MVP:
-
-- Rust
-- Axum
-- PostgreSQL
-- SQLx
-- Argon2id
-- JWT access tokens
-- Server-side refresh token records
-- Supabase adapter behind the provider adapter contract
-
-Redis should not be mandatory in the MVP.
+PostgreSQL is selected for the MVP.
 
 Reason:
 
-- The first version can use PostgreSQL-backed sessions and refresh token state.
-- Redis can be added later for rate limiting, cache, distributed locks, or high-volume token/session workflows.
-
-## Supabase Integration Boundary
-
-Supabase should be treated as an external identity provider, not as the owner of the platform's internal identity.
-
-Supabase adapter responsibilities:
-
-- Verify Supabase user/session identity.
-- Normalize the Supabase subject into an external identity.
-- Return provider metadata allowed by policy.
-
-Supabase adapter must not:
-
-- Replace `internal_user_id`.
-- Own platform session lifecycle.
-- Issue platform access tokens directly.
-- Decide platform authorization.
+- Identity data requires consistency.
+- External identity bindings require uniqueness constraints.
+- Sessions and refresh token records require reliable state transitions.
+- Future client applications, scopes, roles, and permissions fit a relational model.
 
 ## Password Security Decision
 
 Local username/password support must use password hashing, not reversible encryption.
 
-Recommended default:
-
-- Argon2id.
+Argon2id is selected for password hashing.
 
 Password handling rules:
 
@@ -175,10 +102,39 @@ Password handling rules:
 - Allow future hash parameter upgrades.
 - Tune work factors on the actual deployment environment.
 
+## Token Decision
+
+The MVP uses:
+
+- Short-lived JWT access tokens.
+- Server-side refresh token records.
+- Hashed refresh tokens at rest.
+- Refresh token rotation when implemented.
+
+Token issuance must remain separate from session lifecycle.
+
+## Supabase Integration Boundary
+
+Supabase is an external identity provider.
+
+Supabase must not own the platform's internal identity.
+
+Supabase adapter responsibilities:
+
+- Verify Supabase user or session identity.
+- Normalize the Supabase subject into an external identity.
+- Return provider metadata allowed by policy.
+
+Supabase adapter must not:
+
+- Replace `internal_user_id`.
+- Own platform session lifecycle.
+- Issue platform access tokens directly.
+- Decide platform authorization.
+
 ## References Reviewed
 
 - Rust official site: https://www.rust-lang.org/
 - Axum docs: https://docs.rs/axum/latest/axum/
-- NestJS docs: https://docs.nestjs.com/
 - Supabase password auth docs: https://supabase.com/docs/guides/auth/passwords
 - OWASP Password Storage Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html

@@ -46,7 +46,7 @@ Purpose of each document:
 - `docs/ARCHITECTURE.md` defines system architecture and module boundaries.
 - `docs/SPEC.md` defines product and system requirements.
 - `docs/BUILD.md` defines build and usage guidance.
-- `docs/TECH_STACK.md` records the technology stack recommendation and tradeoffs.
+- `docs/TECH_STACK.md` records the fixed technology stack decision.
 - `docs/MVP.md` defines the first minimum viable product.
 - `docs/nextsession.md` preserves context for the next AI-assisted session.
 
@@ -78,103 +78,77 @@ Do not push unless explicitly requested.
 
 ## Implementation Prerequisites
 
-Before Step 4 implementation begins, choose and document:
+Before Step 4 implementation begins, the following decisions are already fixed:
 
-- Programming language: recommended Rust
-- Web framework: recommended Axum
+- Programming language: Rust
+- Web framework: Axum
 - Package manager: Cargo
-- Database: recommended PostgreSQL
-- Cache layer: optional Redis after MVP
+- Database: PostgreSQL
+- Cache layer: no Redis in MVP
 - Token signing approach: JWT access tokens plus server-tracked refresh tokens
+- Test framework: Rust unit and integration tests through Cargo
+
+The following items still need implementation-time detail:
+
 - Local development strategy
 - Deployment target
-- Test framework: Rust unit and integration tests through Cargo
 - Migration strategy
 
-These decisions should be recorded before production code is added.
+These details should be recorded before production code is added.
 
-Current recommendation is documented in:
+The fixed stack is documented in:
 
 - `docs/TECH_STACK.md`
 
-## Recommended Technology Decision Checklist
+## Fixed Technology Decisions
 
 ### Language and Framework
 
-Recommended:
-
-- Rust with Axum
-
-Main alternative:
-
-- TypeScript with NestJS
-
-Selection criteria:
-
-- Team familiarity
-- OAuth2/OIDC library maturity
-- JWT and key management support
-- Database and migration ecosystem
-- Deployment environment
-- Long-term maintainability
+- Rust with Axum is selected.
+- Other languages and frameworks are not active implementation targets.
 
 ### Database
 
-Decision needed:
-
-- PostgreSQL
-- MySQL
-- Cloud-managed relational database
-
-Initial recommendation:
-
-- Use a relational database because identity, sessions, bindings, clients, and permissions require consistency and constraints.
-- PostgreSQL is the preferred MVP database.
+- PostgreSQL is selected.
+- A relational database is required because identity, sessions, bindings, clients, and permissions require consistency and constraints.
 
 ### Cache
 
-Decision needed:
-
-- Redis
-- Cloud-managed cache
-- No cache in first milestone
-
-Initial recommendation:
-
-- Add Redis only when session, token, rate-limit, or provider callback flows require it.
-- Redis is not required for the first MVP.
+- Redis is excluded from the MVP.
+- Add Redis only after the MVP when rate limiting, cache, distributed locks, or high-volume session workflows require it.
 
 ### Token Strategy
-
-Decision needed:
-
-- JWT signing algorithm
-- Key storage
-- Key rotation plan
-- Access token lifetime
-- Refresh token rotation policy
-- Token revocation behavior
-
-Initial recommendation:
 
 - Keep access tokens short-lived.
 - Store refresh token state server-side.
 - Separate token issuance from session lifecycle.
 - Hash refresh tokens before storing them.
 
+Implementation-time details still needed:
+
+- JWT signing algorithm.
+- Key storage.
+- Key rotation plan.
+- Access token lifetime.
+- Refresh token rotation policy.
+- Token revocation behavior.
+
 ### Provider Integration Order
 
-Recommended initial provider order:
+Fixed MVP provider order:
 
 1. Local username/password
 2. Supabase
-3. Email verification code
-4. SMS verification code
-5. OAuth2 generic provider
-6. GitHub
-7. Google
-8. Apple Sign In
-9. WeChat
+
+Post-MVP provider order:
+
+1. Email verification code
+2. SMS verification code
+3. OAuth2 generic provider
+4. GitHub
+5. Google
+6. Apple Sign In
+7. WeChat
 
 Reason:
 

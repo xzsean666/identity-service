@@ -2,9 +2,9 @@
 
 ## Current Step
 
-Documentation update.
+Documentation hardening.
 
-This document defines the first minimum viable product for the Identity Platform / IAM Service.
+This document defines the fixed MVP boundary for the Identity Platform / IAM Service.
 
 No implementation code is included in this step.
 
@@ -13,7 +13,7 @@ No implementation code is included in this step.
 Build the smallest useful identity service that proves the core architecture:
 
 ```text
-User Credential or Supabase Identity
+Local Password or Supabase Identity
         -> Provider Adapter
         -> Identity Binding
         -> internal_user_id
@@ -21,91 +21,49 @@ User Credential or Supabase Identity
         -> Token
 ```
 
-The MVP must support:
+## Hard Boundary
+
+The MVP includes only:
 
 - Local username/password registration.
 - Local username/password login.
 - Supabase identity provider integration.
-- Centralized configuration for enabling and disabling providers.
-- Internal user identity mapping.
-- Basic session lifecycle.
-- Access token and refresh token issuance.
+- Centralized provider enable/disable configuration.
+- Internal user identity mapping through `internal_user_id`.
+- Basic session creation and revocation.
+- JWT access token issuance.
+- Server-tracked refresh token issuance and exchange.
 
-## Explicit MVP Scope
+Anything outside this list is post-MVP unless the user explicitly changes the MVP boundary.
 
-### Included
+## Included Scope
 
-The MVP includes:
+### Local Username and Password
 
-- User registration with username and password.
-- User login with username and password.
-- Password hashing with Argon2id.
-- Internal user creation.
-- Local password external identity binding.
-- Supabase provider adapter.
-- Supabase identity binding to `internal_user_id`.
-- Session creation.
-- Refresh token record creation.
-- Access token issuance.
-- Refresh token exchange.
-- Logout for current session.
-- Basic current-user endpoint.
-- Provider enable/disable configuration.
+The MVP must support:
 
-### Excluded
+- Registering a user with username and password.
+- Logging in with username and password.
+- Storing only Argon2id password hashes.
+- Creating or resolving an `internal_user_id`.
+- Binding the local credential as provider `local_password`.
 
-The MVP excludes:
+### Supabase Provider
 
-- WeChat login.
-- SMS login.
-- Email code login.
-- GitHub login.
-- Google login.
-- Apple Sign In.
-- Full OAuth2/OIDC provider mode.
-- RBAC.
-- Organization and tenant model.
-- MFA.
-- Passkey.
-- SSO.
-- Risk engine.
-- Administrative console UI.
+The MVP must support:
 
-These must be added later as modules.
+- Verifying a Supabase user or session identity.
+- Normalizing Supabase identity into the provider adapter output shape.
+- Binding Supabase identity as provider `supabase`.
+- Resolving Supabase identity to `internal_user_id`.
 
-## MVP Provider Strategy
+Supabase must remain an external provider.
 
-Every login method is a provider.
+It must not replace the internal user model, platform session model, or platform token model.
 
-MVP providers:
+### Configuration Switches
 
-- `local_password`
-- `supabase`
-
-Future providers:
-
-- `wechat`
-- `sms`
-- `email`
-- `oauth2`
-- `github`
-- `google`
-- `apple`
-
-Provider modules must share the same adapter contract.
-
-Provider modules must not:
-
-- Create platform sessions directly.
-- Issue platform tokens directly.
-- Decide authorization.
-- Bypass identity binding.
-
-## Feature Toggle Strategy
-
-Providers and optional capabilities must be controlled by centralized configuration.
-
-Conceptual configuration shape:
+The MVP must support centralized provider enablement:
 
 ```yaml
 identity_providers:
@@ -137,11 +95,47 @@ Feature toggle rules:
 - Provider availability must be decided from centralized configuration at startup.
 - Business logic must not read environment variables directly.
 
-## MVP API Capabilities
+### Session and Token
 
-The exact route names can be chosen during implementation.
+The MVP must support:
 
-Required capability categories:
+- Creating a session after successful authentication.
+- Issuing a short-lived JWT access token.
+- Issuing a refresh token.
+- Storing only a hash of the refresh token.
+- Exchanging a valid refresh token for a new token pair.
+- Logging out of the current session.
+
+## Excluded Scope
+
+The MVP must not include:
+
+- WeChat login.
+- SMS login.
+- Email code login.
+- GitHub login.
+- Google login.
+- Apple Sign In.
+- Generic OAuth2 provider login.
+- OAuth2 provider mode.
+- OIDC provider mode.
+- RBAC.
+- Organization model.
+- Tenant model.
+- MFA.
+- Passkey.
+- SSO.
+- Risk engine.
+- Audit pipeline beyond minimal local logging.
+- Administrative console UI.
+- User management admin APIs.
+- Client application registry.
+
+These are post-MVP modules.
+
+## MVP API Boundary
+
+The MVP API must cover only these product capabilities:
 
 - Register with username/password.
 - Login with username/password.
@@ -149,13 +143,8 @@ Required capability categories:
 - Refresh token.
 - Logout current session.
 - Get current user.
-- List current user's linked identities.
 
-Optional in MVP:
-
-- Revoke all sessions for current user.
-- Basic health check.
-- Basic readiness check.
+Health and readiness endpoints are allowed as operational endpoints, but they are not product scope.
 
 ## MVP Data Model
 
@@ -197,12 +186,12 @@ Required fields:
 For local username/password:
 
 - provider name is `local_password`
-- provider subject identifier is the stable username identity or local credential identifier
+- provider subject identifier is the local credential identifier.
 
 For Supabase:
 
 - provider name is `supabase`
-- provider subject identifier is the Supabase user identifier
+- provider subject identifier is the Supabase user identifier.
 
 ### Session
 
@@ -211,7 +200,6 @@ Required fields:
 - session identifier
 - `internal_user_id`
 - provider name used at login
-- client application identifier when available
 - device metadata when available
 - session status
 - issued time
@@ -248,15 +236,16 @@ The MVP must:
 - Use explicit authentication errors.
 - Avoid leaking whether a username exists when doing so would increase account enumeration risk.
 
-The MVP should:
+The MVP must not:
 
-- Add basic rate limiting before production exposure.
-- Record basic security events before production exposure.
-- Support password hash parameter upgrades later.
+- Store provider access tokens unless explicitly required and documented.
+- Put provider-specific logic inside the core authentication module.
+- Let Supabase issue this platform's final access token.
+- Add authorization policy logic beyond authenticated-user checks.
 
 ## MVP Acceptance Criteria
 
-The MVP is complete when:
+The MVP is complete only when:
 
 - A user can register with username and password.
 - A user can log in with username and password.
@@ -264,20 +253,20 @@ The MVP is complete when:
 - A Supabase identity can be verified through the Supabase provider adapter.
 - A Supabase identity maps to an `internal_user_id`.
 - A successful login creates a session.
-- A successful login returns an access token and refresh token.
+- A successful login returns a JWT access token and refresh token.
 - A refresh token can be exchanged for a new token pair.
 - Logout revokes the current session or refresh token family according to policy.
 - Disabled providers cannot be used.
 - Provider enablement is controlled by centralized configuration.
 - Unit tests cover provider normalization, identity binding, password verification, and refresh token behavior.
 
-## Recommended Implementation Order
+## Implementation Order
 
 After explicit approval for Step 4:
 
 1. Create Rust project skeleton.
 2. Add centralized configuration.
-3. Add feature toggle model.
+3. Add provider feature toggle model.
 4. Add internal user domain model.
 5. Add external identity domain model.
 6. Add provider adapter contract.
@@ -288,22 +277,22 @@ After explicit approval for Step 4:
 11. Add token service.
 12. Add minimal HTTP interface.
 13. Add Supabase provider adapter.
-14. Add tests for the MVP flows.
+14. Add tests for MVP flows.
 
 ## Post-MVP Module Roadmap
 
-After the MVP:
+After the MVP, add modules in this order only when needed:
 
-1. Add email verification code provider.
-2. Add SMS verification code provider.
-3. Add generic OAuth2 provider.
-4. Add GitHub provider.
-5. Add Google provider.
-6. Add Apple Sign In provider.
-7. Add WeChat provider.
-8. Add OAuth2/OIDC provider mode.
-9. Add scope-based authorization.
-10. Add RBAC.
-11. Add organizations and tenants.
-12. Add MFA and Passkey.
-13. Add audit logging and risk controls.
+1. Email verification code provider.
+2. SMS verification code provider.
+3. Generic OAuth2 provider login.
+4. GitHub provider.
+5. Google provider.
+6. Apple Sign In provider.
+7. WeChat provider.
+8. OAuth2/OIDC provider mode.
+9. Scope-based authorization.
+10. RBAC.
+11. Organizations and tenants.
+12. MFA and Passkey.
+13. Audit logging and risk controls.

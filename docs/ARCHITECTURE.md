@@ -764,9 +764,13 @@ Flow description:
 
 ## Key Design Decisions
 
-### Preferred Technology Direction
+### Selected Technology Direction
 
-The recommended implementation direction is Rust with a small HTTP framework such as Axum.
+The implementation direction is fixed as Rust with Axum.
+
+This is fixed and is not an open question.
+
+AI agents must not reopen the language or HTTP framework decision unless the user explicitly asks to change the stack.
 
 Reason:
 
@@ -774,28 +778,24 @@ Reason:
 - Rust makes hidden shared mutable state harder to introduce.
 - Axum's explicit routing and extractor model matches the architecture goal of locally understandable modules.
 
-Tradeoff:
-
-- Rust may make the MVP slower than TypeScript/NestJS if the team is not already comfortable with Rust.
-- Some provider SDKs, especially Supabase client examples, are more mature in JavaScript/TypeScript ecosystems.
-
 The decision is recorded in:
 
 - `docs/TECH_STACK.md`
 
-### MVP Scope Boundary
+### MVP Hard Boundary
 
-The MVP should include only:
+The MVP includes only:
 
 - Local username/password registration.
 - Local username/password login.
 - Supabase provider adapter.
 - Internal user identity mapping.
 - Basic session lifecycle.
-- Basic access and refresh token issuance.
+- JWT access token issuance.
+- Server-tracked refresh token issuance and exchange.
 - Provider feature toggles through centralized configuration.
 
-All other providers should be added later as optional modules.
+All other providers and enterprise features are post-MVP.
 
 The MVP plan is recorded in:
 
@@ -916,10 +916,9 @@ Authorization must not:
 
 ## Risks and Unknowns
 
-- Rust and Axum are recommended but still need final confirmation before implementation starts.
-- PostgreSQL is recommended but migration tooling still needs to be selected.
+- Migration tooling still needs to be selected.
 - Token storage strategy and refresh token rotation details need specification.
-- Supabase integration boundary needs clarification because Supabase can be both an identity provider and a backend platform.
+- Supabase must remain an external identity provider and must not replace `internal_user_id`, platform sessions, or platform tokens.
 - WeChat login requires environment-specific behavior for web, mobile, and mini-program scenarios.
 - OAuth2/OIDC provider mode needs careful client registry and redirect URI validation.
 - Multi-tenant authorization can significantly affect the data model and should not be added implicitly.

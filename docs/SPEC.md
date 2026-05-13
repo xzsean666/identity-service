@@ -50,15 +50,17 @@ The MVP includes:
 - Refresh token exchange.
 - Current session logout.
 
-The MVP excludes all other providers and enterprise features unless explicitly added as modules after the foundation is stable.
+The MVP excludes all other providers and enterprise features.
+
+They are post-MVP modules only.
 
 ## Technology Stack Direction
 
-The recommended stack is documented in:
+The fixed stack is documented in:
 
 - `docs/TECH_STACK.md`
 
-Current recommendation:
+Selected stack:
 
 - Rust.
 - Axum.
@@ -66,7 +68,7 @@ Current recommendation:
 - Argon2id for password hashing.
 - JWT access tokens with server-tracked refresh token state.
 
-TypeScript/NestJS remains the main alternative if fastest MVP delivery becomes more important than long-term identity-service correctness.
+This stack is no longer open for normal implementation discussion.
 
 ## Non-Goals for Initial Version
 
@@ -388,74 +390,46 @@ Future provider toggles:
 
 ## API Surface
 
-The recommended framework is Axum, but exact route names and handler structure should be finalized during implementation.
+The HTTP framework is Axum.
 
-The API surface should be designed around these categories.
+The MVP API surface must stay inside the boundaries defined in `docs/MVP.md`.
 
-### Authentication APIs
+### MVP Authentication APIs
 
-Planned capabilities:
+MVP capabilities:
 
-- Start provider login
-- Complete provider callback
-- Login with SMS code
-- Login with email code
-- Login with Supabase token
-- Login with OAuth2 authorization code
-- Logout
+- Register with username/password.
+- Login with username/password.
+- Login or exchange Supabase identity.
+- Logout current session.
 
-### Session APIs
+### MVP Session APIs
 
-Planned capabilities:
+MVP capabilities:
 
-- Refresh token
-- List active sessions
-- Revoke current session
-- Revoke selected session
-- Revoke all sessions
+- Refresh token.
+- Revoke current session through logout.
 
-### User APIs
+### MVP User APIs
 
-Planned capabilities:
+MVP capabilities:
 
-- Get current user
-- Update current user profile
-- Disable account
-- List linked identities
-- Link identity provider
-- Unlink identity provider
+- Get current user.
 
-### Authorization APIs
+### Post-MVP APIs
 
-Planned capabilities:
+Post-MVP capabilities:
 
-- Verify token
-- Introspect token
-- Check permission
-- Resolve subject context
-
-### OAuth2/OIDC APIs
-
-Planned capabilities:
-
-- Authorize
-- Token
-- Userinfo
-- JWKS
-- Discovery metadata
-- Revoke token
-- Introspect token
-
-### Administration APIs
-
-Planned capabilities:
-
-- Manage users
-- Manage sessions
-- Manage client applications
-- Manage provider settings
-- Manage roles and permissions
-- View audit events
+- SMS login.
+- Email code login.
+- GitHub login.
+- Google login.
+- Apple Sign In.
+- WeChat login.
+- Generic OAuth2 provider login.
+- OAuth2/OIDC provider mode.
+- RBAC permission checks.
+- Administration APIs.
 
 ## Data Requirements
 
@@ -558,7 +532,7 @@ The system must:
 
 ### Phase 1 - Foundation
 
-- Select implementation language and framework.
+- Use the fixed Rust and Axum stack.
 - Create project skeleton.
 - Add centralized configuration.
 - Add feature toggle support.
@@ -571,10 +545,13 @@ The system must:
 
 ### Phase 2 - Multi-Provider Authentication
 
-- Add WeChat provider.
-- Add SMS provider.
 - Add email provider.
-- Add GitHub, Google, and Apple providers.
+- Add SMS provider.
+- Add generic OAuth2 provider.
+- Add GitHub provider.
+- Add Google provider.
+- Add Apple Sign In provider.
+- Add WeChat provider.
 - Add account linking.
 - Add active session listing and revocation.
 

@@ -19,7 +19,7 @@ Repository state:
 - Documentation-only repository.
 - Initial Git history has been created.
 - Architecture, specification, build guidance, and AI agent workflow are documented.
-- Technology stack recommendation has been documented.
+- Fixed technology stack decision has been documented.
 - MVP scope has been documented.
 - Implementation has not started.
 
@@ -56,7 +56,8 @@ Core architecture decisions:
 - Centralize security policy and configuration.
 - Use centralized feature toggles to enable or disable provider modules.
 - Start the MVP with local username/password and Supabase provider support.
-- Support JWT, OAuth2, and OIDC standards.
+- Support JWT in the MVP.
+- Keep OAuth2 and OIDC provider mode post-MVP.
 - Add enterprise features incrementally instead of mixing them into the first version.
 
 ## Completed Parts
@@ -129,7 +130,7 @@ Completed content:
 - Current validation commands.
 - Git workflow.
 - Implementation prerequisites.
-- Technology decision checklist.
+- Fixed technology decisions.
 - Future local development guide.
 - Environment configuration guidance.
 - Future testing strategy.
@@ -142,11 +143,10 @@ File:
 
 Completed content:
 
-- Rust recommendation.
-- Axum framework recommendation.
-- PostgreSQL recommendation.
-- Redis deferred until needed.
-- TypeScript/NestJS alternative.
+- Rust fixed as implementation language.
+- Axum fixed as HTTP framework.
+- PostgreSQL fixed as MVP database.
+- Redis excluded from MVP.
 - Supabase integration boundary.
 - Password hashing decision.
 
@@ -177,20 +177,26 @@ Pending because implementation requires explicit user approval.
 
 Before writing code, decide:
 
-1. Confirm Rust as the implementation language.
-2. Confirm Axum as the web framework.
-3. Confirm Cargo as the package manager.
-4. Confirm PostgreSQL as the database.
-5. Confirm Redis is deferred until needed.
-6. Confirm JWT access tokens and server-tracked refresh tokens.
-7. Migration tool.
-8. Test framework.
-9. Confirm MVP provider order: local username/password, then Supabase.
-10. Deployment target.
+1. Migration tool.
+2. JWT signing algorithm.
+3. Key storage strategy.
+4. Access token lifetime.
+5. Refresh token rotation policy.
+6. Local development strategy.
+7. Deployment target.
 
-### Step 4 - Suggested First Implementation Increment
+Fixed decisions:
 
-Recommended first implementation increment after approval:
+- Language: Rust.
+- HTTP framework: Axum.
+- Package manager: Cargo.
+- Database: PostgreSQL.
+- MVP providers: local username/password and Supabase only.
+- Redis: excluded from MVP.
+
+### Step 4 - First MVP Implementation Increment
+
+First implementation increment after approval:
 
 1. Create project skeleton.
 2. Add centralized configuration module.
@@ -206,20 +212,19 @@ Recommended first implementation increment after approval:
 12. Add Supabase provider adapter.
 13. Add unit tests for identity binding, password verification, refresh token behavior, and provider normalization.
 
-### Step 4 - Suggested Second Implementation Increment
+### Step 4 - MVP Hardening Increment
 
-Recommended second implementation increment:
+Second implementation increment:
 
 1. Add persistence layer.
 2. Add refresh token rotation.
-3. Add session listing and revocation.
+3. Add current-session revocation.
 4. Add token verification.
-5. Add gateway-compatible verification endpoint.
-6. Add integration tests.
+5. Add integration tests.
 
-### Step 4 - Suggested Third Implementation Increment
+### Post-MVP Provider Increment
 
-Recommended third implementation increment:
+Only after MVP acceptance:
 
 1. Add email verification code provider.
 2. Add SMS verification code provider.
@@ -229,9 +234,9 @@ Recommended third implementation increment:
 6. Add account linking.
 7. Add provider contract tests.
 
-### Step 4 - Suggested Fourth Implementation Increment
+### Post-MVP OAuth2/OIDC Increment
 
-Recommended fourth implementation increment:
+Only after MVP acceptance:
 
 1. Add client application registry.
 2. Add OAuth2 authorization endpoint.
@@ -249,37 +254,30 @@ For the next AI session:
 3. Read `docs/SPEC.md`.
 4. Read `docs/BUILD.md`.
 5. Confirm whether the user has approved Step 4 implementation.
-6. If implementation is approved, ask for or choose the technology stack based on project constraints.
+6. If implementation is approved, use Rust, Axum, Cargo, PostgreSQL, Argon2id, JWT access tokens, and server-tracked refresh tokens.
 7. Update `docs/BUILD.md` with stack-specific commands before or during implementation.
 8. Create the implementation skeleton in small increments.
 9. Commit each major step.
 
 ## Risks and Unknowns
 
-### Technology Stack
+### Implementation Details
 
-The recommended language and framework are Rust and Axum.
-
-Impact:
-
-- The recommendation still needs explicit confirmation before implementation.
-- Exact build, test, migration, and runtime commands will be finalized when the Rust project skeleton is created.
-
-### Database
-
-PostgreSQL is recommended.
+The stack is fixed, but some implementation details remain open.
 
 Impact:
 
+- Exact build, test, and runtime commands will be finalized when the Rust project skeleton is created.
 - Migration tooling still needs to be selected.
 
 ### Supabase Boundary
 
-Supabase may be used as an external identity provider, backend platform, or both.
+Supabase is an external identity provider for this service.
 
 Impact:
 
-- Adapter responsibility must be clarified before implementation.
+- The adapter must verify Supabase identity and map it to `internal_user_id`.
+- Supabase must not replace platform sessions or platform tokens.
 
 ### WeChat Login Modes
 
@@ -320,12 +318,13 @@ Current known commits:
 - `feat: add architecture design docs`
 - `feat: add system documentation`
 - `feat: add context handoff documentation`
+- `feat: document technology stack and mvp scope`
 
-This documentation update should be committed with:
+This documentation hardening should be committed with:
 
 ```bash
 git add .
-git commit -m "feat: document technology stack and mvp scope"
+git commit -m "feat: lock rust stack and mvp boundary"
 ```
 
 ## Handoff Completion Criteria
