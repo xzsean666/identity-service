@@ -98,6 +98,8 @@ Password handling rules:
 - Never store plaintext passwords.
 - Never log passwords.
 - Never emit passwords in events.
+- Verify the current password before changing a local password.
+- Hash the new password with Argon2id before storing it.
 - Store algorithm and work factor metadata with the hash.
 - Allow future hash parameter upgrades.
 - Tune work factors on the actual deployment environment.
@@ -119,6 +121,12 @@ Supabase is an external identity provider.
 
 Supabase must not own the platform's internal identity.
 
+Supabase Auth may authenticate users through its own enabled methods, including email/password, magic link, email OTP, phone auth, social login, SSO, OAuth, and OIDC.
+
+This service must treat all Supabase-authenticated users as provider `supabase`.
+
+Supabase-side credential management, including Supabase email/password change and password reset flows, remains Supabase Auth responsibility.
+
 Supabase adapter responsibilities:
 
 - Verify Supabase user or session identity.
@@ -131,10 +139,12 @@ Supabase adapter must not:
 - Own platform session lifecycle.
 - Issue platform access tokens directly.
 - Decide platform authorization.
+- Split Supabase upstream login methods into separate MVP providers.
 
 ## References Reviewed
 
 - Rust official site: https://www.rust-lang.org/
 - Axum docs: https://docs.rs/axum/latest/axum/
+- Supabase Auth docs: https://supabase.com/docs/guides/auth
 - Supabase password auth docs: https://supabase.com/docs/guides/auth/passwords
 - OWASP Password Storage Cheat Sheet: https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html

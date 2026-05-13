@@ -55,7 +55,8 @@ Core architecture decisions:
 - Keep provider-specific logic out of core identity modules.
 - Centralize security policy and configuration.
 - Use centralized feature toggles to enable or disable provider modules.
-- Start the MVP with local username/password and Supabase provider support.
+- Start the MVP with local username/password registration, login, password change, and Supabase provider support.
+- Treat Supabase upstream email, phone, social, OAuth, and OIDC methods as one provider named `supabase`.
 - Support JWT in the MVP.
 - Keep OAuth2 and OIDC provider mode post-MVP.
 - Add enterprise features incrementally instead of mixing them into the first version.
@@ -161,7 +162,9 @@ Completed content:
 - MVP goal.
 - Included and excluded scope.
 - Local username/password provider plan.
+- Authenticated local password change plan.
 - Supabase provider plan.
+- Supabase upstream method boundary.
 - Provider feature toggle strategy.
 - MVP API capabilities.
 - MVP data model.
@@ -192,6 +195,7 @@ Fixed decisions:
 - Package manager: Cargo.
 - Database: PostgreSQL.
 - MVP providers: local username/password and Supabase only.
+- MVP local password flow includes authenticated password change.
 - Redis: excluded from MVP.
 
 ### Step 4 - First MVP Implementation Increment
@@ -206,11 +210,12 @@ First implementation increment after approval:
 6. Add provider adapter contract.
 7. Add local username/password provider.
 8. Add password hashing service.
-9. Add session model.
-10. Add token issuance interface.
-11. Add minimal authentication flow.
-12. Add Supabase provider adapter.
-13. Add unit tests for identity binding, password verification, refresh token behavior, and provider normalization.
+9. Add authenticated local password change flow.
+10. Add session model.
+11. Add token issuance interface.
+12. Add minimal authentication flow.
+13. Add Supabase provider adapter.
+14. Add unit tests for identity binding, password verification, password change, refresh token behavior, and provider normalization.
 
 ### Step 4 - MVP Hardening Increment
 
@@ -278,6 +283,7 @@ Impact:
 
 - The adapter must verify Supabase identity and map it to `internal_user_id`.
 - Supabase must not replace platform sessions or platform tokens.
+- Supabase upstream email, phone, social, OAuth, and OIDC methods must remain inside provider `supabase`.
 
 ### WeChat Login Modes
 

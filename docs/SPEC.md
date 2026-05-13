@@ -42,6 +42,7 @@ The MVP includes:
 
 - Local username/password registration.
 - Local username/password login.
+- Local username/password change for authenticated users.
 - Supabase provider adapter.
 - Provider enable/disable configuration.
 - Internal user identity mapping.
@@ -53,6 +54,12 @@ The MVP includes:
 The MVP excludes all other providers and enterprise features.
 
 They are post-MVP modules only.
+
+Supabase Auth may provide email/password, magic link, email OTP, phone auth, social login, SSO, OAuth, or OIDC upstream.
+
+Within this service's MVP, all Supabase-authenticated users are normalized as provider `supabase`; they are not separate first-party providers.
+
+Supabase-side credential management, including Supabase email/password change and password reset flows, remains in Supabase Auth.
 
 ## Technology Stack Direction
 
@@ -190,18 +197,41 @@ The system must:
 - Resolve an external identity to an `internal_user_id`.
 - Create an internal user when allowed by registration policy.
 - Reject login when account status or provider status is invalid.
+- Support local password change for authenticated users with current-password verification.
 
-Initial provider categories:
+Provider categories:
 
-- Local username/password
-- Supabase
-- WeChat
-- SMS verification code
-- Email verification code
-- OAuth2 provider
-- GitHub
-- Google
-- Apple Sign In
+- MVP: Local username/password.
+- MVP: Supabase.
+- Post-MVP: WeChat.
+- Post-MVP: SMS verification code.
+- Post-MVP: Email verification code.
+- Post-MVP: OAuth2 provider.
+- Post-MVP: GitHub.
+- Post-MVP: Google.
+- Post-MVP: Apple Sign In.
+
+### Supabase Provider
+
+The Supabase provider adapter must:
+
+- Verify Supabase-authenticated user or session identity.
+- Normalize Supabase identity into provider `supabase`.
+- Use the Supabase user identifier as the provider subject identifier.
+- Ignore which upstream Supabase method was used for this service's provider selection.
+
+Supabase upstream methods may include:
+
+- Email/password.
+- Magic link.
+- Email OTP.
+- Phone auth.
+- Social login.
+- SSO.
+- OAuth.
+- OIDC.
+
+This service must not split those upstream methods into separate MVP providers.
 
 ### Account Binding
 
@@ -400,6 +430,7 @@ MVP capabilities:
 
 - Register with username/password.
 - Login with username/password.
+- Change local password while authenticated.
 - Login or exchange Supabase identity.
 - Logout current session.
 
@@ -422,6 +453,7 @@ Post-MVP capabilities:
 
 - SMS login.
 - Email code login.
+- Local forgot-password email flow.
 - GitHub login.
 - Google login.
 - Apple Sign In.
@@ -486,6 +518,8 @@ The system must:
 - Use secure token signing.
 - Avoid storing plaintext secrets.
 - Avoid logging credentials or tokens.
+- Require current-password verification before local password change.
+- Hash new local passwords with Argon2id before storage.
 - Validate redirect URIs strictly.
 - Validate token issuer and audience.
 - Expire access tokens.
@@ -540,6 +574,7 @@ The system must:
 - Add external identity model.
 - Add provider adapter contract.
 - Add local username/password provider.
+- Add local password change flow.
 - Add Supabase provider adapter.
 - Add session and token foundation.
 

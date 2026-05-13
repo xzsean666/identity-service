@@ -236,6 +236,7 @@ Design rule:
 Purpose:
 
 - Provide first-party username and password registration and login.
+- Provide authenticated local password change.
 - Treat local credentials as one provider type behind the same provider adapter boundary.
 - Keep password hashing and verification isolated from general authentication flow coordination.
 
@@ -243,12 +244,14 @@ Input:
 
 - Username
 - Plaintext password during registration or login
+- Current password and new password during password change
 - Password policy context
 
 Output:
 
 - Normalized external identity using provider name `local_password`
 - Password verification result
+- Password change result
 - Explicit credential error
 
 Dependencies:
@@ -261,6 +264,7 @@ Design rule:
 
 - Plaintext passwords must never be stored, logged, emitted in events, or passed beyond the local password provider boundary.
 - Password hashes must use a modern password hashing algorithm selected in the security policy.
+- Password change must verify the current password before replacing the stored password hash.
 
 ### Identity Binding Module
 
@@ -726,6 +730,29 @@ Flow description:
 4. The session module records the rotation result.
 5. The client receives new credentials.
 
+### Local Password Change Flow
+
+```text
+Authenticated User
+  -> Interface Module
+  -> Authentication Module
+  -> Local Password Provider Module
+  -> Session Module
+  -> Token Module
+  -> Client
+```
+
+Flow description:
+
+1. An authenticated user submits current password and new password.
+2. The interface module validates request shape and passes a command to the authentication module.
+3. The authentication module confirms the authenticated `internal_user_id`.
+4. The local password provider verifies the current password.
+5. The local password provider hashes and stores the new password.
+6. The session module revokes or rotates old refresh token state according to policy.
+7. The token module issues a new token pair when policy requires it.
+8. The interface module returns the password change result.
+
 ### Authorization Flow
 
 ```text
@@ -788,6 +815,7 @@ The MVP includes only:
 
 - Local username/password registration.
 - Local username/password login.
+- Local username/password change for authenticated users.
 - Supabase provider adapter.
 - Internal user identity mapping.
 - Basic session lifecycle.
@@ -800,6 +828,21 @@ All other providers and enterprise features are post-MVP.
 The MVP plan is recorded in:
 
 - `docs/MVP.md`
+
+### Supabase Provider Boundary
+
+Supabase is one provider from this service's point of view.
+
+Supabase Auth may authenticate users through its own enabled methods, including email/password, magic link, email OTP, phone auth, social login, SSO, OAuth, and OIDC.
+
+The MVP must not split those Supabase upstream methods into separate first-party providers.
+
+All Supabase-authenticated users must normalize to:
+
+- provider name: `supabase`
+- provider subject identifier: Supabase user identifier
+
+Supabase-side credential management, including Supabase email/password change and password reset flows, remains in Supabase Auth.
 
 ### Provider Adapter Pattern
 

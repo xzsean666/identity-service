@@ -27,6 +27,7 @@ The MVP includes only:
 
 - Local username/password registration.
 - Local username/password login.
+- Local username/password change for authenticated users.
 - Supabase identity provider integration.
 - Centralized provider enable/disable configuration.
 - Internal user identity mapping through `internal_user_id`.
@@ -44,9 +45,15 @@ The MVP must support:
 
 - Registering a user with username and password.
 - Logging in with username and password.
+- Changing the local password while authenticated.
+- Verifying the current password before accepting a new password.
 - Storing only Argon2id password hashes.
 - Creating or resolving an `internal_user_id`.
 - Binding the local credential as provider `local_password`.
+
+The MVP does not include local forgot-password or password-reset-by-email flows.
+
+Those require email delivery infrastructure and are post-MVP.
 
 ### Supabase Provider
 
@@ -60,6 +67,19 @@ The MVP must support:
 Supabase must remain an external provider.
 
 It must not replace the internal user model, platform session model, or platform token model.
+
+Supabase Auth may use its own enabled upstream methods, including email/password, magic link, email OTP, phone auth, social login, SSO, OAuth, and OIDC.
+
+For this service's MVP, all of those Supabase-authenticated identities are still treated as one provider:
+
+- provider name: `supabase`
+- provider subject identifier: Supabase user identifier
+
+The MVP must not duplicate Supabase's upstream email, phone, social, OAuth, or OIDC login methods as separate first-party providers.
+
+Supabase-side credential management, including Supabase email/password change and password reset flows, stays inside Supabase Auth.
+
+This service only verifies the resulting Supabase-authenticated user or session.
 
 ### Configuration Switches
 
@@ -113,6 +133,7 @@ The MVP must not include:
 - WeChat login.
 - SMS login.
 - Email code login.
+- Local forgot-password email flow.
 - GitHub login.
 - Google login.
 - Apple Sign In.
@@ -139,6 +160,7 @@ The MVP API must cover only these product capabilities:
 
 - Register with username/password.
 - Login with username/password.
+- Change local password while authenticated.
 - Login or exchange Supabase identity.
 - Refresh token.
 - Logout current session.
@@ -228,6 +250,9 @@ The MVP must:
 - Use unique salts managed by the password hashing library.
 - Never store plaintext passwords.
 - Never log passwords or tokens.
+- Require current-password verification before changing a local password.
+- Hash the new password with Argon2id before storing it.
+- Revoke or rotate refresh token state after a successful local password change.
 - Use short-lived access tokens.
 - Store refresh token state server-side.
 - Hash refresh tokens before storage.
@@ -242,6 +267,7 @@ The MVP must not:
 - Put provider-specific logic inside the core authentication module.
 - Let Supabase issue this platform's final access token.
 - Add authorization policy logic beyond authenticated-user checks.
+- Treat Supabase email, phone, social, OAuth, or OIDC identities as separate MVP providers.
 
 ## MVP Acceptance Criteria
 
@@ -249,8 +275,11 @@ The MVP is complete only when:
 
 - A user can register with username and password.
 - A user can log in with username and password.
+- An authenticated local-password user can change password after current-password verification.
+- A successful local password change updates only the password hash and invalidates old refresh token state according to policy.
 - Passwords are hashed with Argon2id.
 - A Supabase identity can be verified through the Supabase provider adapter.
+- A Supabase user authenticated through Supabase email, phone, social, OAuth, or OIDC methods is still normalized as provider `supabase`.
 - A Supabase identity maps to an `internal_user_id`.
 - A successful login creates a session.
 - A successful login returns a JWT access token and refresh token.
@@ -258,7 +287,7 @@ The MVP is complete only when:
 - Logout revokes the current session or refresh token family according to policy.
 - Disabled providers cannot be used.
 - Provider enablement is controlled by centralized configuration.
-- Unit tests cover provider normalization, identity binding, password verification, and refresh token behavior.
+- Unit tests cover provider normalization, identity binding, password verification, password change, and refresh token behavior.
 
 ## Implementation Order
 
@@ -272,12 +301,13 @@ After explicit approval for Step 4:
 6. Add provider adapter contract.
 7. Add local password provider.
 8. Add password hashing service.
-9. Add identity binding service.
-10. Add session model.
-11. Add token service.
-12. Add minimal HTTP interface.
-13. Add Supabase provider adapter.
-14. Add tests for MVP flows.
+9. Add local password change flow.
+10. Add identity binding service.
+11. Add session model.
+12. Add token service.
+13. Add minimal HTTP interface.
+14. Add Supabase provider adapter.
+15. Add tests for MVP flows.
 
 ## Post-MVP Module Roadmap
 

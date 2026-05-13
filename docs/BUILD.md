@@ -133,12 +133,13 @@ Implementation-time details still needed:
 - Refresh token rotation policy.
 - Token revocation behavior.
 
-### Provider Integration Order
+### Identity Implementation Order
 
-Fixed MVP provider order:
+Fixed MVP identity implementation order:
 
 1. Local username/password
-2. Supabase
+2. Local password change
+3. Supabase
 
 Post-MVP provider order:
 
@@ -153,7 +154,9 @@ Post-MVP provider order:
 Reason:
 
 - Local username/password validates the internal identity, credential, session, and token foundation.
+- Local password change validates credential update and refresh token invalidation behavior.
 - Supabase validates the provider adapter and external identity binding model.
+- Supabase upstream email, phone, social, OAuth, and OIDC methods remain inside the single `supabase` provider boundary for the MVP.
 - Email and SMS should be added after the MVP because they require delivery infrastructure and abuse controls.
 - Generic OAuth2 creates a reusable base for GitHub, Google, and other providers.
 - WeChat and Apple have platform-specific edge cases and should be implemented after core provider contracts are stable.
