@@ -4,10 +4,10 @@
 
 Step 4 - MVP implementation has started.
 
-The repository now contains a Rust/Axum service skeleton with an in-memory development storage adapter.
+The repository now contains a Rust/Axum service skeleton with both in-memory and PostgreSQL persistence adapters.
 
-PostgreSQL remains the selected production persistence target, but the current implementation is intentionally the first executable MVP increment, not the final production storage layer.
-The PostgreSQL schema exists in `migrations/`, and persistence configuration can select `memory` or `postgres`; business code still uses the in-memory adapter until the next wiring increment.
+PostgreSQL is the selected production persistence target.
+The PostgreSQL schema exists in `migrations/`, and startup wiring selects either `memory` or `postgres` through centralized configuration.
 
 ## Repository Layout
 
@@ -30,6 +30,7 @@ identity-service/
     config/
     domain/
     infrastructure/
+      postgres/
     interfaces/
     providers/
     security/
@@ -55,11 +56,11 @@ Current executable scope:
 
 Current implementation limits:
 
-- Persistence is in memory and resets on process restart.
-- `IDENTITY_PERSISTENCE_BACKEND` defaults to `memory`; `postgres` is validated at startup but is not wired into business repositories yet.
+- `IDENTITY_PERSISTENCE_BACKEND` defaults to `memory`, which resets on process restart.
+- `IDENTITY_PERSISTENCE_BACKEND=postgres` wires business repositories to PostgreSQL and requires a migrated database.
 - Supabase verification supports JWT access token validation through a configured Supabase JWKS.
 - Supabase fixture tokens are available only when explicitly enabled for local tests.
-- PostgreSQL persistence is required before production deployment.
+- Migration execution is still manual through the SQL files in `migrations/`.
 - JWT revocation is stateless for external consumers; logout and password change revoke refresh-token state, while already issued access tokens remain valid until `exp`.
 
 ## Prerequisites
@@ -210,6 +211,14 @@ Tests:
 cargo test
 ```
 
+PostgreSQL repository integration tests are opt-in. They run only when `IDENTITY_DATABASE_URL` is present, and they expect the MVP migration to already be applied:
+
+```bash
+export IDENTITY_DATABASE_URL="postgres://identity:identity@localhost:5432/identity"
+psql "$IDENTITY_DATABASE_URL" -f migrations/0001_mvp_identity_schema.up.sql
+cargo test postgres_repositories
+```
+
 Whitespace check before commit:
 
 ```bash
@@ -223,10 +232,8 @@ PostgreSQL is still the required production persistence target because identity 
 Current persistence configuration:
 
 - `IDENTITY_PERSISTENCE_BACKEND=memory` uses the current in-memory MVP adapter and is the default.
-- `IDENTITY_PERSISTENCE_BACKEND=postgres` requires `IDENTITY_DATABASE_URL` during configuration loading.
+- `IDENTITY_PERSISTENCE_BACKEND=postgres` uses PostgreSQL repositories and requires `IDENTITY_DATABASE_URL` during configuration loading.
 - `IDENTITY_DATABASE_URL` is optional for the default memory backend.
-
-The PostgreSQL schema exists, but business wiring still uses in-memory repositories. The next persistence increment should connect the existing service flows to PostgreSQL implementations.
 
 The MVP schema lives in `migrations/` as plain PostgreSQL SQL:
 
@@ -242,11 +249,17 @@ psql "$DATABASE_URL" -f migrations/0001_mvp_identity_schema.down.sql
 
 The migration creates only the current MVP persistence tables: `internal_users`, `external_identities`, `local_credentials`, `sessions`, and `refresh_token_records`.
 
-The next persistence increment should add:
+Implemented PostgreSQL behavior:
 
-- PostgreSQL implementations under infrastructure.
-- Runtime wiring from `IDENTITY_PERSISTENCE_BACKEND=postgres` to PostgreSQL repositories.
-- Transactional password-change and refresh-token rotation behavior.
+- Identity binding, local credential, and session repositories are implemented under `src/infrastructure/postgres/`.
+- Runtime wiring selects PostgreSQL repositories when `IDENTITY_PERSISTENCE_BACKEND=postgres`.
+- Session creation, refresh token exchange, reuse detection, logout revocation, and refresh-family rotation use PostgreSQL transactions.
+- Refresh token exchange locks the current refresh-token row with `FOR UPDATE`.
+
+Known persistence hardening left after this increment:
+
+- Add a migration runner instead of applying SQL manually.
+- Add a cross-repository unit-of-work boundary if strict single-transaction password-hash update plus refresh-family rotation is required.
 
 Do not add Redis to the MVP unless a specific runtime need appears.
 

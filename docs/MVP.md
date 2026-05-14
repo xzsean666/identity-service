@@ -388,9 +388,11 @@ Password change policy:
 
 Current Step 4 implementation note:
 
-- The first executable increment uses an in-memory storage adapter for local development and tests.
-- PostgreSQL persistence is required before production MVP acceptance.
-- Transaction requirements above describe the required PostgreSQL behavior.
+- The executable increment supports an in-memory storage adapter for local development and a PostgreSQL adapter for persisted deployments.
+- `IDENTITY_PERSISTENCE_BACKEND=memory` is the default.
+- `IDENTITY_PERSISTENCE_BACKEND=postgres` wires the identity, local credential, and session repositories to PostgreSQL.
+- PostgreSQL refresh-token exchange, reuse detection, logout revocation, and refresh-family rotation run inside repository transactions.
+- A strict single transaction covering both password-hash update and refresh-family rotation remains a hardening item if this deployment requires that guarantee.
 
 Refresh token exchange policy:
 
@@ -436,6 +438,9 @@ After explicit approval for Step 4:
 13. Add minimal HTTP interface.
 14. Add Supabase provider adapter.
 15. Add tests for MVP flows.
+16. Add PostgreSQL repository implementations.
+17. Wire runtime persistence selection.
+18. Add opt-in PostgreSQL repository integration test.
 
 ## Post-MVP Module Roadmap
 

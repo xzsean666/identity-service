@@ -19,7 +19,9 @@ async fn main() {
     let address: SocketAddr = format!("{}:{}", config.http.host, config.http.port)
         .parse()
         .expect("validated host and port must form a socket address");
-    let auth_service = build_auth_service(config).expect("auth service must initialize");
+    let auth_service = build_auth_service(config)
+        .await
+        .expect("auth service must initialize");
     let app = router(auth_service);
 
     let listener = tokio::net::TcpListener::bind(address)

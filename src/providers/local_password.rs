@@ -36,24 +36,25 @@ pub enum LocalCredentialStatus {
     Disabled,
 }
 
+#[async_trait]
 pub trait LocalCredentialRepository: Send + Sync {
-    fn create_credential(
+    async fn create_credential(
         &self,
         normalized_username: &str,
         credential: LocalCredential,
     ) -> Result<LocalCredential, AppError>;
 
-    fn find_by_normalized_username(
+    async fn find_by_normalized_username(
         &self,
         normalized_username: &str,
     ) -> Result<Option<LocalCredential>, AppError>;
 
-    fn find_by_internal_user_id(
+    async fn find_by_internal_user_id(
         &self,
         internal_user_id: Uuid,
     ) -> Result<Option<LocalCredential>, AppError>;
 
-    fn update_for_internal_user_id(
+    async fn update_for_internal_user_id(
         &self,
         internal_user_id: Uuid,
         credential: LocalCredential,
@@ -94,7 +95,7 @@ impl LocalPasswordProvider {
             .map_err(|_| AppError::InvalidCredentials)
     }
 
-    pub fn create_credential_for_user(
+    pub async fn create_credential_for_user(
         &self,
         internal_user_id: Uuid,
         username: &str,
@@ -118,9 +119,10 @@ impl LocalPasswordProvider {
 
         self.credential_repository
             .create_credential(&normalized_username, credential)
+            .await
     }
 
-    pub fn change_password(
+    pub async fn change_password(
         &self,
         internal_user_id: Uuid,
         current_password: &str,
@@ -129,7 +131,8 @@ impl LocalPasswordProvider {
         validate_password(new_password)?;
         let mut credential = self
             .credential_repository
-            .find_by_internal_user_id(internal_user_id)?
+            .find_by_internal_user_id(internal_user_id)
+            .await?
             .ok_or(AppError::InvalidCredentials)?;
 
         if credential.status != LocalCredentialStatus::Active {
@@ -140,6 +143,7 @@ impl LocalPasswordProvider {
         credential.updated_at = Utc::now();
         self.credential_repository
             .update_for_internal_user_id(internal_user_id, credential)
+            .await
     }
 }
 
@@ -166,7 +170,8 @@ impl IdentityProviderAdapter for LocalPasswordProvider {
         let normalized_username = Self::normalize_username(&username);
         let credential = self
             .credential_repository
-            .find_by_normalized_username(&normalized_username)?
+            .find_by_normalized_username(&normalized_username)
+            .await?
             .ok_or(AppError::InvalidCredentials)?;
 
         if credential.status != LocalCredentialStatus::Active {
@@ -213,8 +218,8 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn change_password_requires_current_password_and_updates_hash() {
+    #[tokio::test]
+    async fn change_password_requires_current_password_and_updates_hash() {
         let state = InMemoryState::shared();
         let provider = LocalPasswordProvider::new(
             Arc::new(InMemoryLocalCredentialRepository::new(state.clone())),
@@ -223,15 +228,19 @@ mod tests {
         let internal_user_id = Uuid::new_v4();
         provider
             .create_credential_for_user(internal_user_id, "Alice", "old-password")
+            .await
             .unwrap();
 
         assert!(matches!(
-            provider.change_password(internal_user_id, "wrong-password", "new-password"),
+            provider
+                .change_password(internal_user_id, "wrong-password", "new-password")
+                .await,
             Err(AppError::InvalidCredentials)
         ));
 
         provider
             .change_password(internal_user_id, "old-password", "new-password")
+            .await
             .unwrap();
 
         let state = state.lock();

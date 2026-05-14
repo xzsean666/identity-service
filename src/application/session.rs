@@ -2,6 +2,8 @@ use chrono::{Duration, Utc};
 use std::sync::Arc;
 use uuid::Uuid;
 
+use async_trait::async_trait;
+
 use crate::{
     application::error::AppError,
     config::{ClientConfig, SessionConfig},
@@ -13,14 +15,15 @@ use crate::{
     security::RefreshTokenHasher,
 };
 
+#[async_trait]
 pub trait SessionRepository: Send + Sync {
-    fn create_session_with_refresh(
+    async fn create_session_with_refresh(
         &self,
         session: Session,
         refresh_token: RefreshTokenRecord,
     ) -> Result<(Session, RefreshTokenRecord), AppError>;
 
-    fn exchange_refresh(
+    async fn exchange_refresh(
         &self,
         token_hash: &str,
         next_token_hash: String,
@@ -28,9 +31,13 @@ pub trait SessionRepository: Send + Sync {
         now: chrono::DateTime<Utc>,
     ) -> Result<(Session, RefreshTokenRecord), AppError>;
 
-    fn revoke_session(&self, session_id: Uuid, now: chrono::DateTime<Utc>) -> Result<(), AppError>;
+    async fn revoke_session(
+        &self,
+        session_id: Uuid,
+        now: chrono::DateTime<Utc>,
+    ) -> Result<(), AppError>;
 
-    fn rotate_all_user_refresh_families(
+    async fn rotate_all_user_refresh_families(
         &self,
         internal_user_id: Uuid,
         current_session_id: Uuid,
@@ -39,7 +46,7 @@ pub trait SessionRepository: Send + Sync {
         now: chrono::DateTime<Utc>,
     ) -> Result<RefreshTokenRecord, AppError>;
 
-    fn active_session_by_id(
+    async fn active_session_by_id(
         &self,
         session_id: Uuid,
         now: chrono::DateTime<Utc>,
@@ -69,7 +76,7 @@ impl SessionService {
         }
     }
 
-    pub fn create_session(
+    pub async fn create_session(
         &self,
         user: &InternalUser,
         provider_name: &str,
@@ -97,9 +104,10 @@ impl SessionService {
 
         self.repository
             .create_session_with_refresh(session, refresh_token)
+            .await
     }
 
-    pub fn exchange_refresh_token(
+    pub async fn exchange_refresh_token(
         &self,
         refresh_token: &str,
         next_refresh_token_secret: String,
@@ -107,19 +115,21 @@ impl SessionService {
         let token_hash = self.refresh_token_hasher.hash(refresh_token)?;
         let next_token_hash = self.refresh_token_hasher.hash(&next_refresh_token_secret)?;
         let now = Utc::now();
-        self.repository.exchange_refresh(
-            &token_hash,
-            next_token_hash,
-            self.session_config.refresh_token_lifetime_seconds,
-            now,
-        )
+        self.repository
+            .exchange_refresh(
+                &token_hash,
+                next_token_hash,
+                self.session_config.refresh_token_lifetime_seconds,
+                now,
+            )
+            .await
     }
 
-    pub fn revoke_session(&self, session_id: Uuid) -> Result<(), AppError> {
-        self.repository.revoke_session(session_id, Utc::now())
+    pub async fn revoke_session(&self, session_id: Uuid) -> Result<(), AppError> {
+        self.repository.revoke_session(session_id, Utc::now()).await
     }
 
-    pub fn rotate_all_user_refresh_families(
+    pub async fn rotate_all_user_refresh_families(
         &self,
         internal_user_id: Uuid,
         current_session_id: Uuid,
@@ -127,17 +137,21 @@ impl SessionService {
     ) -> Result<RefreshTokenRecord, AppError> {
         let now = Utc::now();
         let new_token_hash = self.refresh_token_hasher.hash(&new_refresh_token_secret)?;
-        self.repository.rotate_all_user_refresh_families(
-            internal_user_id,
-            current_session_id,
-            new_token_hash,
-            self.session_config.refresh_token_lifetime_seconds,
-            now,
-        )
+        self.repository
+            .rotate_all_user_refresh_families(
+                internal_user_id,
+                current_session_id,
+                new_token_hash,
+                self.session_config.refresh_token_lifetime_seconds,
+                now,
+            )
+            .await
     }
 
-    pub fn session_by_id(&self, session_id: Uuid) -> Result<Session, AppError> {
-        self.repository.active_session_by_id(session_id, Utc::now())
+    pub async fn session_by_id(&self, session_id: Uuid) -> Result<Session, AppError> {
+        self.repository
+            .active_session_by_id(session_id, Utc::now())
+            .await
     }
 
     pub fn token_pair(
@@ -197,24 +211,28 @@ mod tests {
         )
     }
 
-    #[test]
-    fn refresh_exchange_rotates_token_and_detects_reuse() {
+    #[tokio::test]
+    async fn refresh_exchange_rotates_token_and_detects_reuse() {
         let state = crate::infrastructure::memory::InMemoryState::shared();
         let service = session_service(Arc::new(InMemorySessionRepository::new(state.clone())));
         let user = InternalUser::new_active(Utc::now());
 
         let (session, first_record) = service
             .create_session(&user, "local_password", "first-refresh".to_owned())
+            .await
             .unwrap();
         let (rotated_session, second_record) = service
             .exchange_refresh_token("first-refresh", "second-refresh".to_owned())
+            .await
             .unwrap();
 
         assert_eq!(session.session_id, rotated_session.session_id);
         assert_eq!(first_record.token_family_id, second_record.token_family_id);
 
         assert!(matches!(
-            service.exchange_refresh_token("first-refresh", "third-refresh".to_owned()),
+            service
+                .exchange_refresh_token("first-refresh", "third-refresh".to_owned())
+                .await,
             Err(AppError::RefreshTokenReused)
         ));
 

@@ -50,7 +50,7 @@ SQIDAQAB
 
 #[tokio::test]
 async fn register_then_me_returns_registered_user() {
-    let mut app = test_app(true);
+    let mut app = test_app(true).await;
 
     let register = post_json(
         &mut app,
@@ -75,7 +75,7 @@ async fn register_then_me_returns_registered_user() {
 
 #[tokio::test]
 async fn login_refresh_then_logout_revokes_current_session() {
-    let mut app = test_app(true);
+    let mut app = test_app(true).await;
 
     let credentials =
         json!({ "username": "bob@example.test", "password": "correct horse battery staple" });
@@ -127,7 +127,7 @@ async fn login_refresh_then_logout_revokes_current_session() {
 
 #[tokio::test]
 async fn disabled_local_provider_returns_provider_disabled() {
-    let mut app = test_app(false);
+    let mut app = test_app(false).await;
 
     let register = post_json(
         &mut app,
@@ -146,8 +146,12 @@ async fn disabled_local_provider_returns_provider_disabled() {
     assert_provider_disabled(login);
 }
 
-fn test_app(local_password_enabled: bool) -> axum::Router {
-    router(build_auth_service(test_config(local_password_enabled)).expect("test config is valid"))
+async fn test_app(local_password_enabled: bool) -> axum::Router {
+    router(
+        build_auth_service(test_config(local_password_enabled))
+            .await
+            .expect("test config is valid"),
+    )
 }
 
 fn test_config(local_password_enabled: bool) -> AppConfig {
@@ -165,6 +169,8 @@ fn test_config(local_password_enabled: bool) -> AppConfig {
             std::env::set_var("IDENTITY_TOKEN_AUDIENCE", "platform-api-http-test");
             std::env::set_var("IDENTITY_TOKEN_KEY_ID", "http-test-key");
             std::env::set_var("IDENTITY_CLIENT_ID", "identity-service-http-test");
+            std::env::set_var("IDENTITY_PERSISTENCE_BACKEND", "memory");
+            std::env::remove_var("IDENTITY_DATABASE_URL");
             std::env::set_var("IDENTITY_PROVIDER_SUPABASE_ENABLED", "false");
             std::env::set_var("IDENTITY_PROVIDER_SUPABASE_AUTO_PROVISION_ENABLED", "false");
         }

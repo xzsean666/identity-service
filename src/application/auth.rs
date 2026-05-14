@@ -61,21 +61,43 @@ impl AuthService {
         if !self.local_password_provider.descriptor().enabled {
             return Err(AppError::ProviderDisabled);
         }
-        let user = self.identity_binding.create_active_user()?;
-        let credential = self.local_password_provider.create_credential_for_user(
-            user.internal_user_id,
-            &username,
-            &password,
-        )?;
+        let user = self.identity_binding.create_active_user().await?;
+        let credential = match self
+            .local_password_provider
+            .create_credential_for_user(user.internal_user_id, &username, &password)
+            .await
+        {
+            Ok(credential) => credential,
+            Err(error) => {
+                let _ = self
+                    .identity_binding
+                    .delete_user(user.internal_user_id)
+                    .await;
+                return Err(error);
+            }
+        };
         let normalized_identity =
             crate::domain::identity::NormalizedExternalIdentity::local_password(
                 credential.credential_id,
                 &credential.username,
             );
-        let user = self.identity_binding.resolve_identity(
-            normalized_identity,
-            BindingMode::LinkToExisting(user.internal_user_id),
-        )?;
+        let user = match self
+            .identity_binding
+            .resolve_identity(
+                normalized_identity,
+                BindingMode::LinkToExisting(user.internal_user_id),
+            )
+            .await
+        {
+            Ok(user) => user,
+            Err(error) => {
+                let _ = self
+                    .identity_binding
+                    .delete_user(user.internal_user_id)
+                    .await;
+                return Err(error);
+            }
+        };
         self.issue_platform_tokens(user, LOCAL_PASSWORD_PROVIDER)
             .await
     }
@@ -91,7 +113,8 @@ impl AuthService {
             .await?;
         let user = self
             .identity_binding
-            .resolve_identity(normalized_identity, BindingMode::LoginOnly)?;
+            .resolve_identity(normalized_identity, BindingMode::LoginOnly)
+            .await?;
         self.issue_platform_tokens(user, LOCAL_PASSWORD_PROVIDER)
             .await
     }
@@ -111,7 +134,8 @@ impl AuthService {
         };
         let user = self
             .identity_binding
-            .resolve_identity(normalized_identity, binding_mode)?;
+            .resolve_identity(normalized_identity, binding_mode)
+            .await?;
         self.issue_platform_tokens(user, SUPABASE_PROVIDER).await
     }
 
@@ -119,7 +143,8 @@ impl AuthService {
         let next_refresh_token = self.token_service.generate_refresh_token_secret();
         let (session, _refresh_record) = self
             .session_service
-            .exchange_refresh_token(&refresh_token, next_refresh_token.clone())?;
+            .exchange_refresh_token(&refresh_token, next_refresh_token.clone())
+            .await?;
         let (access_token, expires_in) = self.token_service.issue_access_token(&session)?;
         Ok(self
             .session_service
@@ -133,24 +158,22 @@ impl AuthService {
         new_password: String,
     ) -> Result<TokenPair, AppError> {
         let claims = self.token_service.verify_access_token(access_token)?;
-        let session = self.session_service.session_by_id(claims.sid)?;
+        let session = self.session_service.session_by_id(claims.sid).await?;
         if session.internal_user_id != claims.sub {
             return Err(AppError::Unauthorized);
         }
-        self.local_password_provider.change_password(
-            claims.sub,
-            &current_password,
-            &new_password,
-        )?;
+        self.local_password_provider
+            .change_password(claims.sub, &current_password, &new_password)
+            .await?;
         let next_refresh_token = self.token_service.generate_refresh_token_secret();
-        let refresh_record = self.session_service.rotate_all_user_refresh_families(
-            claims.sub,
-            claims.sid,
-            next_refresh_token.clone(),
-        )?;
+        let refresh_record = self
+            .session_service
+            .rotate_all_user_refresh_families(claims.sub, claims.sid, next_refresh_token.clone())
+            .await?;
         let session = self
             .session_service
-            .session_by_id(refresh_record.session_id)?;
+            .session_by_id(refresh_record.session_id)
+            .await?;
         let (access_token, expires_in) = self.token_service.issue_access_token(&session)?;
         Ok(self
             .session_service
@@ -159,13 +182,13 @@ impl AuthService {
 
     pub async fn logout(&self, access_token: &str) -> Result<(), AppError> {
         let claims = self.token_service.verify_access_token(access_token)?;
-        self.session_service.revoke_session(claims.sid)
+        self.session_service.revoke_session(claims.sid).await
     }
 
     pub async fn current_user(&self, access_token: &str) -> Result<InternalUser, AppError> {
         let claims = self.token_service.verify_access_token(access_token)?;
-        let _session = self.session_service.session_by_id(claims.sid)?;
-        self.identity_binding.user_by_id(claims.sub)
+        let _session = self.session_service.session_by_id(claims.sid).await?;
+        self.identity_binding.user_by_id(claims.sub).await
     }
 
     async fn issue_platform_tokens(
@@ -174,9 +197,10 @@ impl AuthService {
         provider_name: &str,
     ) -> Result<AuthResponse, AppError> {
         let refresh_token = self.token_service.generate_refresh_token_secret();
-        let (session, _refresh_record) =
-            self.session_service
-                .create_session(&user, provider_name, refresh_token.clone())?;
+        let (session, _refresh_record) = self
+            .session_service
+            .create_session(&user, provider_name, refresh_token.clone())
+            .await?;
         let (access_token, expires_in) = self.token_service.issue_access_token(&session)?;
         let tokens = self
             .session_service

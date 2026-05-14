@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use parking_lot::Mutex;
 use uuid::Uuid;
@@ -43,14 +44,15 @@ impl InMemoryIdentityRepository {
     }
 }
 
+#[async_trait]
 impl IdentityRepository for InMemoryIdentityRepository {
-    fn insert_active_user(&self, user: InternalUser) -> Result<(), AppError> {
+    async fn insert_active_user(&self, user: InternalUser) -> Result<(), AppError> {
         let mut state = self.state.lock();
         state.users.insert(user.internal_user_id, user);
         Ok(())
     }
 
-    fn bound_user(
+    async fn bound_user(
         &self,
         external_identity: &NormalizedExternalIdentity,
     ) -> Result<Option<InternalUser>, AppError> {
@@ -75,7 +77,7 @@ impl IdentityRepository for InMemoryIdentityRepository {
             .transpose()
     }
 
-    fn bind_new_active_user(
+    async fn bind_new_active_user(
         &self,
         external_identity: NormalizedExternalIdentity,
         now: chrono::DateTime<Utc>,
@@ -103,7 +105,7 @@ impl IdentityRepository for InMemoryIdentityRepository {
         Ok(user)
     }
 
-    fn bind_existing_user(
+    async fn bind_existing_user(
         &self,
         internal_user_id: Uuid,
         external_identity: NormalizedExternalIdentity,
@@ -138,13 +140,31 @@ impl IdentityRepository for InMemoryIdentityRepository {
         Ok(user)
     }
 
-    fn user_by_id(&self, internal_user_id: Uuid) -> Result<InternalUser, AppError> {
+    async fn user_by_id(&self, internal_user_id: Uuid) -> Result<InternalUser, AppError> {
         let state = self.state.lock();
         state
             .users
             .get(&internal_user_id)
             .cloned()
             .ok_or(AppError::Unauthorized)
+    }
+
+    async fn delete_user(&self, internal_user_id: Uuid) -> Result<(), AppError> {
+        let mut state = self.state.lock();
+        state.users.remove(&internal_user_id);
+        state
+            .identities_by_provider_subject
+            .retain(|_, identity| identity.internal_user_id != internal_user_id);
+        state
+            .local_credentials_by_username
+            .retain(|_, credential| credential.internal_user_id != internal_user_id);
+        state
+            .sessions
+            .retain(|_, session| session.internal_user_id != internal_user_id);
+        state
+            .refresh_tokens_by_hash
+            .retain(|_, refresh_token| refresh_token.internal_user_id != internal_user_id);
+        Ok(())
     }
 }
 
@@ -158,8 +178,9 @@ impl InMemoryLocalCredentialRepository {
     }
 }
 
+#[async_trait]
 impl LocalCredentialRepository for InMemoryLocalCredentialRepository {
-    fn create_credential(
+    async fn create_credential(
         &self,
         normalized_username: &str,
         credential: LocalCredential,
@@ -178,7 +199,7 @@ impl LocalCredentialRepository for InMemoryLocalCredentialRepository {
         Ok(credential)
     }
 
-    fn find_by_normalized_username(
+    async fn find_by_normalized_username(
         &self,
         normalized_username: &str,
     ) -> Result<Option<LocalCredential>, AppError> {
@@ -189,7 +210,7 @@ impl LocalCredentialRepository for InMemoryLocalCredentialRepository {
             .cloned())
     }
 
-    fn find_by_internal_user_id(
+    async fn find_by_internal_user_id(
         &self,
         internal_user_id: Uuid,
     ) -> Result<Option<LocalCredential>, AppError> {
@@ -201,7 +222,7 @@ impl LocalCredentialRepository for InMemoryLocalCredentialRepository {
             .cloned())
     }
 
-    fn update_for_internal_user_id(
+    async fn update_for_internal_user_id(
         &self,
         internal_user_id: Uuid,
         credential: LocalCredential,
@@ -242,8 +263,9 @@ impl InMemorySessionRepository {
     }
 }
 
+#[async_trait]
 impl SessionRepository for InMemorySessionRepository {
-    fn create_session_with_refresh(
+    async fn create_session_with_refresh(
         &self,
         session: Session,
         refresh_token: RefreshTokenRecord,
@@ -256,7 +278,7 @@ impl SessionRepository for InMemorySessionRepository {
         Ok((session, refresh_token))
     }
 
-    fn exchange_refresh(
+    async fn exchange_refresh(
         &self,
         token_hash: &str,
         next_token_hash: String,
@@ -334,7 +356,11 @@ impl SessionRepository for InMemorySessionRepository {
         Ok((session, new_record))
     }
 
-    fn revoke_session(&self, session_id: Uuid, now: chrono::DateTime<Utc>) -> Result<(), AppError> {
+    async fn revoke_session(
+        &self,
+        session_id: Uuid,
+        now: chrono::DateTime<Utc>,
+    ) -> Result<(), AppError> {
         let mut state = self.state.lock();
         {
             let session = state
@@ -353,7 +379,7 @@ impl SessionRepository for InMemorySessionRepository {
         Ok(())
     }
 
-    fn rotate_all_user_refresh_families(
+    async fn rotate_all_user_refresh_families(
         &self,
         internal_user_id: Uuid,
         current_session_id: Uuid,
@@ -398,7 +424,7 @@ impl SessionRepository for InMemorySessionRepository {
         Ok(new_record)
     }
 
-    fn active_session_by_id(
+    async fn active_session_by_id(
         &self,
         session_id: Uuid,
         now: chrono::DateTime<Utc>,
