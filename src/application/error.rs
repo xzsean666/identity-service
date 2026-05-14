@@ -24,6 +24,8 @@ pub enum AppError {
     AccountDisabled,
     #[error("not found")]
     NotFound,
+    #[error("dependency unavailable: {0}")]
+    DependencyUnavailable(String),
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -48,6 +50,7 @@ impl AppError {
             Self::RefreshTokenReused => "refresh_token_reused",
             Self::AccountDisabled => "account_disabled",
             Self::NotFound => "not_found",
+            Self::DependencyUnavailable(_) => "dependency_unavailable",
             Self::Internal(_) => "internal_error",
         }
     }
@@ -64,6 +67,7 @@ impl AppError {
             Self::RefreshTokenReused => StatusCode::UNAUTHORIZED,
             Self::AccountDisabled => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
+            Self::DependencyUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }

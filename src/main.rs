@@ -1,7 +1,7 @@
 use std::net::SocketAddr;
 
 use identity_service::{
-    application::bootstrap::build_auth_service, config::AppConfig, interfaces::http::router,
+    application::bootstrap::build_application_services, config::AppConfig, interfaces::http::router,
 };
 
 #[tokio::main]
@@ -19,10 +19,10 @@ async fn main() {
     let address: SocketAddr = format!("{}:{}", config.http.host, config.http.port)
         .parse()
         .expect("validated host and port must form a socket address");
-    let auth_service = build_auth_service(config)
+    let services = build_application_services(config)
         .await
-        .expect("auth service must initialize");
-    let app = router(auth_service);
+        .expect("application services must initialize");
+    let app = router(services);
 
     let listener = tokio::net::TcpListener::bind(address)
         .await

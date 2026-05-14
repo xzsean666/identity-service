@@ -1,12 +1,14 @@
 use sqlx::{PgPool, postgres::PgPoolOptions};
 
 mod error;
+mod health;
 mod identity;
 mod local_credential;
 mod mapping;
 mod migration;
 mod session;
 
+pub use health::PostgresReadinessCheck;
 pub use identity::PostgresIdentityRepository;
 pub use local_credential::PostgresLocalCredentialRepository;
 pub use migration::{

@@ -195,6 +195,8 @@ Disabled providers return `provider_disabled` instead of disappearing from the r
 | `POST` | `/v1/auth/refresh` | `refresh_token` | new token pair |
 | `POST` | `/v1/auth/logout` | bearer access token | logout result |
 | `GET` | `/v1/users/me` | bearer access token | current user |
+| `GET` | `/health` | none | process health |
+| `GET` | `/ready` | none | dependency readiness |
 
 MVP error codes:
 
@@ -207,6 +209,7 @@ MVP error codes:
 - `token_invalid`
 - `refresh_token_reused`
 - `account_disabled`
+- `dependency_unavailable`
 
 General HTTP error responses may also return:
 
@@ -392,6 +395,7 @@ Current Step 4 implementation note:
 - `IDENTITY_PERSISTENCE_BACKEND=memory` is the default.
 - `IDENTITY_PERSISTENCE_BACKEND=postgres` wires the identity, local credential, and session repositories to PostgreSQL.
 - `cargo run --bin migrate -- up` applies the MVP PostgreSQL migration.
+- `/ready` checks memory readiness for the default backend and PostgreSQL readiness for the `postgres` backend.
 - PostgreSQL refresh-token exchange, reuse detection, logout revocation, and refresh-family rotation run inside repository transactions.
 - A strict single transaction covering both password-hash update and refresh-family rotation remains a hardening item if this deployment requires that guarantee.
 
@@ -443,6 +447,7 @@ After explicit approval for Step 4:
 17. Wire runtime persistence selection.
 18. Add opt-in PostgreSQL repository integration test.
 19. Add PostgreSQL migration runner.
+20. Add backend-aware readiness endpoint.
 
 ## Post-MVP Module Roadmap
 

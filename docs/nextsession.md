@@ -29,6 +29,7 @@ Repository state:
 - Runtime wiring now selects PostgreSQL repositories when `IDENTITY_PERSISTENCE_BACKEND=postgres`.
 - PostgreSQL repository implementations are split by responsibility under `src/infrastructure/postgres/`.
 - PostgreSQL migrations can be applied through `cargo run --bin migrate -- up`.
+- `/ready` checks memory readiness for the default backend and PostgreSQL readiness for the `postgres` backend.
 
 Current completed workflow steps:
 
@@ -266,6 +267,7 @@ Completed Step 4 work:
 20. Runtime persistence selection in the application bootstrap.
 21. Opt-in PostgreSQL repository integration test.
 22. PostgreSQL migration runner binary.
+23. Backend-aware readiness endpoint.
 
 Open implementation decisions:
 
@@ -288,9 +290,9 @@ Fixed decisions:
 
 Next implementation increment:
 
-1. Add readiness checks that include PostgreSQL when the backend is `postgres`.
-2. Add a cross-repository unit-of-work if password hash update and refresh-family rotation must be committed in one database transaction.
-3. Add Supabase JWKS caching with conservative refresh behavior.
+1. Add a cross-repository unit-of-work if password hash update and refresh-family rotation must be committed in one database transaction.
+2. Add Supabase JWKS caching with conservative refresh behavior.
+3. Add a deployment example after target runtime is selected.
 
 ### Post-MVP Provider Increment
 
@@ -329,7 +331,7 @@ For the next AI session:
 5. Read `docs/MODULE_EXPANSION.md`.
 6. Read `docs/INTEGRATION.md`.
 7. Continue inside the MVP boundary in `docs/MVP.md`.
-8. Prefer readiness hardening as the next implementation focus.
+8. Prefer transaction hardening or Supabase JWKS caching as the next implementation focus.
 9. Commit each major step.
 
 ## Risks and Unknowns
@@ -410,11 +412,11 @@ Current known commits:
 - `feat: document module expansion rules`
 - `feat: refine modular architecture audit findings`
 
-Latest Step 4 migration work should be committed with:
+Latest Step 4 readiness work should be committed with:
 
 ```bash
 git add .
-git commit -m "feat: add postgres migration runner"
+git commit -m "feat: add backend readiness checks"
 ```
 
 ## Handoff Maintenance Criteria

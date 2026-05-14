@@ -7,7 +7,8 @@ use uuid::Uuid;
 
 use crate::{
     application::{
-        error::AppError, identity_binding::IdentityRepository, session::SessionRepository,
+        error::AppError, identity_binding::IdentityRepository, readiness::ReadinessDependency,
+        session::SessionRepository,
     },
     domain::{
         identity::{ExternalIdentity, NormalizedExternalIdentity},
@@ -26,6 +27,20 @@ pub struct InMemoryState {
     pub local_credentials_by_username: HashMap<String, LocalCredential>,
     pub sessions: HashMap<Uuid, Session>,
     pub refresh_tokens_by_hash: HashMap<String, RefreshTokenRecord>,
+}
+
+#[derive(Clone, Default)]
+pub struct InMemoryReadinessCheck;
+
+#[async_trait]
+impl ReadinessDependency for InMemoryReadinessCheck {
+    fn name(&self) -> &'static str {
+        "memory"
+    }
+
+    async fn check(&self) -> Result<(), AppError> {
+        Ok(())
+    }
 }
 
 impl InMemoryState {

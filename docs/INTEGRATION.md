@@ -286,6 +286,7 @@ Common MVP error codes:
 - `token_invalid`
 - `refresh_token_reused`
 - `account_disabled`
+- `dependency_unavailable`
 - `not_found`
 - `internal_error`
 
@@ -302,6 +303,7 @@ Common status mapping:
 | `token_invalid` | `401` |
 | `refresh_token_reused` | `401` |
 | `account_disabled` | `403` |
+| `dependency_unavailable` | `503` |
 | `not_found` | `404` |
 | `internal_error` | `500` |
 

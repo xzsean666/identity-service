@@ -144,6 +144,16 @@ Health check:
 curl http://127.0.0.1:3000/health
 ```
 
+Readiness check:
+
+```bash
+curl http://127.0.0.1:3000/ready
+```
+
+`/health` reports that the HTTP process is running.
+`/ready` reports whether required runtime dependencies are available.
+When `IDENTITY_PERSISTENCE_BACKEND=postgres`, `/ready` checks PostgreSQL with `SELECT 1`.
+
 ## MVP API
 
 ```text
@@ -155,6 +165,7 @@ POST /v1/auth/refresh
 POST /v1/auth/logout
 GET  /v1/users/me
 GET  /health
+GET  /ready
 ```
 
 Disabled providers keep their public routes registered and return `provider_disabled`.

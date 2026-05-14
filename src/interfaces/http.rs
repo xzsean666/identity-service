@@ -10,22 +10,20 @@ use axum::{
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    application::{
-        auth::{AuthResponse, AuthService},
-        error::AppError,
-    },
+    application::{auth::AuthResponse, bootstrap::ApplicationServices, error::AppError},
     domain::user::InternalUser,
 };
 
 #[derive(Clone)]
 pub struct HttpState {
-    pub auth_service: Arc<AuthService>,
+    pub services: Arc<ApplicationServices>,
 }
 
-pub fn router(auth_service: Arc<AuthService>) -> Router {
-    let state = HttpState { auth_service };
+pub fn router(services: Arc<ApplicationServices>) -> Router {
+    let state = HttpState { services };
     Router::new()
         .route("/health", get(health))
+        .route("/ready", get(readiness))
         .route("/v1/auth/register", post(register))
         .route("/v1/auth/login", post(login))
         .route("/v1/auth/password/change", post(change_password))
@@ -38,6 +36,11 @@ pub fn router(auth_service: Arc<AuthService>) -> Router {
 
 async fn health() -> impl IntoResponse {
     (StatusCode::OK, Json(serde_json::json!({ "status": "ok" })))
+}
+
+async fn readiness(State(state): State<HttpState>) -> Result<impl IntoResponse, AppError> {
+    let report = state.services.readiness_service.check().await?;
+    Ok((StatusCode::OK, Json(report)))
 }
 
 #[derive(Deserialize)]
@@ -77,6 +80,7 @@ async fn register(
     Json(request): Json<PasswordAuthRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
     state
+        .services
         .auth_service
         .register_with_local_password(request.username, request.password)
         .await
@@ -88,6 +92,7 @@ async fn login(
     Json(request): Json<PasswordAuthRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
     state
+        .services
         .auth_service
         .login_with_local_password(request.username, request.password)
         .await
@@ -101,6 +106,7 @@ async fn change_password(
 ) -> Result<Json<TokenResponse>, AppError> {
     let access_token = bearer_token(&headers)?;
     let tokens = state
+        .services
         .auth_service
         .change_local_password(
             &access_token,
@@ -116,6 +122,7 @@ async fn exchange_supabase(
     Json(request): Json<SupabaseExchangeRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
     state
+        .services
         .auth_service
         .exchange_supabase_token(request.access_token)
         .await
@@ -126,7 +133,11 @@ async fn refresh(
     State(state): State<HttpState>,
     Json(request): Json<RefreshRequest>,
 ) -> Result<Json<TokenResponse>, AppError> {
-    let tokens = state.auth_service.refresh(request.refresh_token).await?;
+    let tokens = state
+        .services
+        .auth_service
+        .refresh(request.refresh_token)
+        .await?;
     Ok(Json(TokenResponse { tokens }))
 }
 
@@ -135,7 +146,7 @@ async fn logout(
     headers: HeaderMap,
 ) -> Result<Json<LogoutResponse>, AppError> {
     let access_token = bearer_token(&headers)?;
-    state.auth_service.logout(&access_token).await?;
+    state.services.auth_service.logout(&access_token).await?;
     Ok(Json(LogoutResponse { revoked: true }))
 }
 
@@ -145,6 +156,7 @@ async fn current_user(
 ) -> Result<Json<InternalUser>, AppError> {
     let access_token = bearer_token(&headers)?;
     state
+        .services
         .auth_service
         .current_user(&access_token)
         .await

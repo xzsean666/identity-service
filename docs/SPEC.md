@@ -561,6 +561,14 @@ MVP capabilities:
 
 - Get current user.
 
+### MVP Operational APIs
+
+MVP capabilities:
+
+- Process health check.
+- Runtime readiness check.
+- PostgreSQL dependency readiness when PostgreSQL persistence is enabled.
+
 ### Post-MVP APIs
 
 Post-MVP capabilities:

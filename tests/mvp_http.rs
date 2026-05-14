@@ -3,7 +3,7 @@ use axum::{
     http::{Method, Request, StatusCode, header},
 };
 use identity_service::{
-    application::bootstrap::build_auth_service, config::AppConfig, interfaces::http::router,
+    application::bootstrap::build_application_services, config::AppConfig, interfaces::http::router,
 };
 use serde_json::{Value, json};
 use std::sync::Once;
@@ -71,6 +71,21 @@ async fn register_then_me_returns_registered_user() {
     assert_eq!(me.status, StatusCode::OK);
     assert_eq!(me.body["internal_user_id"], user_id);
     assert_eq!(me.body["account_status"], "Active");
+}
+
+#[tokio::test]
+async fn health_and_ready_endpoints_report_operational_state() {
+    let mut app = test_app(true).await;
+
+    let health = get_json(&mut app, "/health").await;
+    assert_eq!(health.status, StatusCode::OK);
+    assert_eq!(health.body["status"], "ok");
+
+    let ready = get_json(&mut app, "/ready").await;
+    assert_eq!(ready.status, StatusCode::OK);
+    assert_eq!(ready.body["status"], "ready");
+    assert_eq!(ready.body["persistence"]["name"], "memory");
+    assert_eq!(ready.body["persistence"]["status"], "ready");
 }
 
 #[tokio::test]
@@ -148,7 +163,7 @@ async fn disabled_local_provider_returns_provider_disabled() {
 
 async fn test_app(local_password_enabled: bool) -> axum::Router {
     router(
-        build_auth_service(test_config(local_password_enabled))
+        build_application_services(test_config(local_password_enabled))
             .await
             .expect("test config is valid"),
     )
@@ -209,6 +224,16 @@ async fn get_with_bearer(app: &mut axum::Router, uri: &str, bearer_token: &str) 
         .method(Method::GET)
         .uri(uri)
         .header(header::AUTHORIZATION, format!("Bearer {bearer_token}"))
+        .body(Body::empty())
+        .expect("request should build");
+
+    call(app, request).await
+}
+
+async fn get_json(app: &mut axum::Router, uri: &str) -> TestResponse {
+    let request = Request::builder()
+        .method(Method::GET)
+        .uri(uri)
         .body(Body::empty())
         .expect("request should build");
 
