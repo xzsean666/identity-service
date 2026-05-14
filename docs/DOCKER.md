@@ -40,6 +40,18 @@ For the default in-memory MVP, the only value you normally need to change is:
 IDENTITY_REFRESH_TOKEN_HMAC_SECRET=replace-with-a-long-local-secret
 ```
 
+Supabase is still part of the MVP.
+It is disabled in the minimal local `.env.example` so Docker can start without a real Supabase project.
+Enable it by changing:
+
+```bash
+IDENTITY_PROVIDER_SUPABASE_ENABLED=true
+IDENTITY_PROVIDER_SUPABASE_PROJECT_URL=https://your-project.supabase.co
+IDENTITY_PROVIDER_SUPABASE_ISSUER=https://your-project.supabase.co/auth/v1
+IDENTITY_PROVIDER_SUPABASE_AUDIENCE=authenticated
+IDENTITY_PROVIDER_SUPABASE_JWKS_URL=https://your-project.supabase.co/auth/v1/.well-known/jwks.json
+```
+
 Enable browser frontend direct mode only when a frontend needs to call this service directly:
 
 ```bash
