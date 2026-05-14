@@ -423,6 +423,7 @@ The MVP is complete only when:
 - Disabled providers cannot be used.
 - Provider enablement is controlled by centralized configuration.
 - Unit tests cover provider normalization, identity binding, password verification, password change, and refresh token behavior.
+- E2E tests cover local password, Supabase JWT exchange, refresh rotation/reuse detection, password change, logout, readiness, provider toggles, and optional PostgreSQL HTTP flow.
 
 ## Implementation Order
 

@@ -271,6 +271,7 @@ Completed Step 4 work:
 23. Backend-aware readiness endpoint.
 24. Supabase remote JWKS caching with refresh on missing `kid`.
 25. Transactional PostgreSQL local password change with refresh-token rotation.
+26. Full E2E HTTP flow tests for memory and optional PostgreSQL backends.
 
 Open implementation decisions:
 

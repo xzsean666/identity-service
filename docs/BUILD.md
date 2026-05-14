@@ -224,12 +224,39 @@ Tests:
 cargo test
 ```
 
+Full E2E flow tests:
+
+```bash
+cargo test --test e2e_full_flow
+```
+
+The default E2E suite runs against the in-memory backend and covers:
+
+- `/health` and `/ready`.
+- Local username/password registration.
+- Duplicate registration conflict.
+- Failed and successful local login.
+- Refresh token rotation and reuse detection.
+- Authenticated password change.
+- Old password rejection after password change.
+- Refresh-token invalidation after password change and logout.
+- Supabase JWT exchange through configured JWKS.
+- Supabase identity reuse into the same `internal_user_id`.
+- Disabled provider errors.
+
 PostgreSQL repository integration tests are opt-in. They run only when `IDENTITY_DATABASE_URL` is present, and they expect the MVP migration to already be applied:
 
 ```bash
 export IDENTITY_DATABASE_URL="postgres://identity:identity@localhost:5432/identity"
 cargo run --bin migrate -- up
 cargo test postgres_repositories
+```
+
+The E2E suite also runs the full HTTP flow against PostgreSQL when `IDENTITY_DATABASE_URL` is present:
+
+```bash
+export IDENTITY_DATABASE_URL="postgres://identity:identity@localhost:5432/identity"
+cargo test --test e2e_full_flow
 ```
 
 Whitespace check before commit:
