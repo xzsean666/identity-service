@@ -569,6 +569,7 @@ MVP capabilities:
 - Process health check.
 - Runtime readiness check.
 - PostgreSQL dependency readiness when PostgreSQL persistence is enabled.
+- Platform JWKS endpoint for downstream backend JWT verification.
 
 ### Post-MVP APIs
 
@@ -585,7 +586,6 @@ Post-MVP capabilities:
 - OAuth2/OIDC provider mode.
 - RBAC permission checks.
 - Administration APIs.
-- JWKS endpoint.
 - Token introspection endpoint.
 - Permission check endpoint.
 - Service-to-service authentication.

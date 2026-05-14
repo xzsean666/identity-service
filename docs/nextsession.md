@@ -241,6 +241,9 @@ Completed content:
 - Token policy with RS256 access tokens.
 - Release build script increments the patch version, builds release binaries, and replaces `release/` with only the latest successful build.
 - Docker startup supports a prebuilt release image path and a source-compiling image path, both configured with China-friendly apt/Cargo/Rustup mirror defaults.
+- Docker runtime env is simplified through `.env.example` and optional local `.env`.
+- Frontend direct mode is controlled by explicit CORS origins.
+- Backend services can verify platform JWTs through `/.well-known/jwks.json` and read `sub` as `internal_user_id`.
 
 ## Pending Tasks
 
@@ -277,6 +280,9 @@ Completed Step 4 work:
 27. Release build script that bumps the package patch version and writes only the latest successful build into `release/`.
 28. Docker release startup path that copies `release/identity-service`.
 29. Docker source startup path that compiles Rust inside Docker with domestic mirror defaults.
+30. Simplified Docker environment configuration with `.env.example`.
+31. Frontend direct CORS mode.
+32. Platform JWKS endpoint for downstream backend JWT verification.
 
 Open implementation decisions:
 
@@ -323,9 +329,8 @@ Only after MVP acceptance:
 1. Add client application registry.
 2. Add OAuth2 authorization endpoint.
 3. Add OAuth2 token endpoint.
-4. Add JWKS endpoint.
-5. Add OIDC discovery metadata.
-6. Add userinfo endpoint.
+4. Add OIDC discovery metadata that references the existing platform JWKS endpoint.
+5. Add userinfo endpoint.
 
 ## Next Actions
 
@@ -430,11 +435,11 @@ Current known commits:
 - `feat: document module expansion rules`
 - `feat: refine modular architecture audit findings`
 
-Latest Docker startup work should be committed with:
+Latest frontend direct and env simplification work should be committed with:
 
 ```bash
 git add .
-git commit -m "chore: add docker startup builds"
+git commit -m "feat: simplify docker env and add frontend direct mode"
 ```
 
 ## Handoff Maintenance Criteria

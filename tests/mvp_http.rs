@@ -89,6 +89,57 @@ async fn health_and_ready_endpoints_report_operational_state() {
 }
 
 #[tokio::test]
+async fn jwks_endpoint_exposes_public_platform_key_for_backend_integrations() {
+    let mut app = test_app(true).await;
+
+    let jwks = get_json(&mut app, "/.well-known/jwks.json").await;
+
+    assert_eq!(jwks.status, StatusCode::OK);
+    assert_eq!(jwks.body["keys"][0]["kid"], "http-test-key");
+    assert_eq!(jwks.body["keys"][0]["alg"], "RS256");
+    assert_eq!(jwks.body["keys"][0]["use"], "sig");
+    assert_eq!(jwks.body["keys"][0]["kty"], "RSA");
+    assert!(jwks.body["keys"][0]["n"].is_string());
+    assert!(jwks.body["keys"][0]["e"].is_string());
+    assert!(jwks.body["keys"][0].get("d").is_none());
+}
+
+#[tokio::test]
+async fn frontend_direct_mode_adds_cors_for_allowed_origin() {
+    let mut config = test_config(true);
+    config.http.frontend_direct.enabled = true;
+    config.http.frontend_direct.allowed_origins = vec!["http://localhost:5173".to_owned()];
+    let app = router(
+        build_application_services(config)
+            .await
+            .expect("test config is valid"),
+    );
+
+    let request = Request::builder()
+        .method(Method::OPTIONS)
+        .uri("/v1/auth/login")
+        .header(header::ORIGIN, "http://localhost:5173")
+        .header(header::ACCESS_CONTROL_REQUEST_METHOD, "POST")
+        .header(
+            header::ACCESS_CONTROL_REQUEST_HEADERS,
+            "authorization,content-type",
+        )
+        .body(Body::empty())
+        .expect("request should build");
+    let response = app
+        .clone()
+        .oneshot(request)
+        .await
+        .expect("router should respond");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get(header::ACCESS_CONTROL_ALLOW_ORIGIN),
+        Some(&"http://localhost:5173".parse().unwrap())
+    );
+}
+
+#[tokio::test]
 async fn login_refresh_then_logout_revokes_current_session() {
     let mut app = test_app(true).await;
 
@@ -238,6 +289,8 @@ fn test_config(local_password_enabled: bool) -> AppConfig {
             std::env::set_var("IDENTITY_CLIENT_ID", "identity-service-http-test");
             std::env::set_var("IDENTITY_PERSISTENCE_BACKEND", "memory");
             std::env::remove_var("IDENTITY_DATABASE_URL");
+            std::env::remove_var("IDENTITY_FRONTEND_DIRECT_ENABLED");
+            std::env::remove_var("IDENTITY_FRONTEND_ALLOWED_ORIGINS");
             std::env::set_var("IDENTITY_PROVIDER_SUPABASE_ENABLED", "false");
             std::env::set_var("IDENTITY_PROVIDER_SUPABASE_AUTO_PROVISION_ENABLED", "false");
         }

@@ -7,9 +7,9 @@ use chrono::Utc;
 use identity_service::{
     application::bootstrap::build_application_services,
     config::{
-        AppConfig, ClientConfig, HttpConfig, IdentityProviderConfig, PersistenceBackend,
-        PersistenceConfig, ProviderToggle, SecurityConfig, SessionConfig, SupabaseProviderConfig,
-        TokenConfig,
+        AppConfig, ClientConfig, FrontendDirectConfig, HttpConfig, IdentityProviderConfig,
+        PersistenceBackend, PersistenceConfig, ProviderToggle, SecurityConfig, SessionConfig,
+        SupabaseProviderConfig, TokenConfig,
     },
     infrastructure::postgres::run_pending_migrations,
     interfaces::http::router,
@@ -389,6 +389,10 @@ fn test_config(
         http: HttpConfig {
             host: "127.0.0.1".to_owned(),
             port: 3000,
+            frontend_direct: FrontendDirectConfig {
+                enabled: false,
+                allowed_origins: Vec::new(),
+            },
         },
         persistence: PersistenceConfig {
             backend: persistence_backend,

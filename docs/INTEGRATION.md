@@ -63,9 +63,9 @@ MVP access token verification must check:
 
 MVP platform token key distribution:
 
-- A platform JWKS endpoint is post-MVP.
-- Backend services receive the platform public key PEM through deployment configuration.
-- Backend services must map configured `kid` values to public keys.
+- A platform JWKS endpoint is available at `GET /.well-known/jwks.json`.
+- Backend services may load public keys from JWKS or receive the platform public key PEM through deployment configuration.
+- Backend services must map configured or discovered `kid` values to public keys.
 - Unknown `kid` values must be rejected.
 - Key rotation in MVP is manual: deploy the new `kid -> public key` mapping to consumers, switch the issuer to the new signing key, then remove the old key after all old access tokens expire.
 
@@ -118,6 +118,31 @@ Response shape:
 }
 ```
 
+## Frontend Direct Mode
+
+Browser frontends may call the identity service directly when frontend direct mode is enabled.
+
+Required configuration:
+
+```bash
+IDENTITY_FRONTEND_DIRECT_ENABLED=true
+IDENTITY_FRONTEND_ALLOWED_ORIGINS=http://localhost:5173,https://app.example.com
+```
+
+Frontend direct mode adds CORS for the configured exact origins only.
+It allows JSON requests and bearer-token requests using:
+
+```http
+Authorization: Bearer <platform_access_token>
+Content-Type: application/json
+```
+
+The browser receives the same MVP token response as other clients.
+Frontend applications should treat refresh tokens as sensitive secrets and avoid storing them in long-lived browser storage.
+
+Other backend services should not depend on frontend direct mode.
+They should validate the platform JWT locally and read `sub` as `internal_user_id`.
+
 ## MVP Stateless Revocation Limit
 
 External backend services and gateways that verify JWTs locally do not observe session revocation in real time.
@@ -137,7 +162,6 @@ The MVP does not include:
 - Full client application registry.
 - OAuth2 introspection endpoint.
 - OAuth2/OIDC discovery endpoint.
-- JWKS endpoint.
 - Central permission-check API.
 - RBAC.
 - Tenant-aware authorization.
@@ -149,15 +173,14 @@ These are post-MVP integration modules.
 
 After MVP acceptance, add integration capabilities in this order when needed:
 
-1. JWKS endpoint for public key discovery.
-2. Token verification endpoint for trusted internal services that cannot verify JWT locally.
-3. Token introspection endpoint.
-4. Permission check endpoint.
-5. Client application registry.
-6. OAuth2/OIDC discovery metadata.
-7. Userinfo endpoint.
-8. Service-to-service authentication.
-9. Official middleware or SDK packages.
+1. Token verification endpoint for trusted internal services that cannot verify JWT locally.
+2. Token introspection endpoint.
+3. Permission check endpoint.
+4. Client application registry.
+5. OAuth2/OIDC discovery metadata.
+6. Userinfo endpoint.
+7. Service-to-service authentication.
+8. Official middleware or SDK packages.
 
 ## Gateway Integration
 

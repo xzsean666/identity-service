@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use jsonwebtoken::jwk::JwkSet;
 use serde::Serialize;
 
 use crate::{
@@ -199,6 +200,10 @@ impl AuthService {
         let claims = self.token_service.verify_access_token(access_token)?;
         let _session = self.session_service.session_by_id(claims.sid).await?;
         self.identity_binding.user_by_id(claims.sub).await
+    }
+
+    pub fn public_jwks(&self) -> Result<JwkSet, AppError> {
+        self.token_service.public_jwks()
     }
 
     async fn issue_platform_tokens(

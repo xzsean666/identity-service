@@ -25,6 +25,30 @@ openssl rsa -pubout -in secrets/jwt_private.pem -out secrets/jwt_public.pem
 
 The startup scripts run the container as the current host user by default so bind-mounted key files remain readable.
 
+## Minimal Environment
+
+Docker Compose reads a local `.env` file when it exists.
+Start from the small template:
+
+```bash
+cp .env.example .env
+```
+
+For the default in-memory MVP, the only value you normally need to change is:
+
+```bash
+IDENTITY_REFRESH_TOKEN_HMAC_SECRET=replace-with-a-long-local-secret
+```
+
+Enable browser frontend direct mode only when a frontend needs to call this service directly:
+
+```bash
+IDENTITY_FRONTEND_DIRECT_ENABLED=true
+IDENTITY_FRONTEND_ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+```
+
+Do not use wildcard origins. Add the exact frontend origins that are allowed to call this service.
+
 ## Option 1 - Run Existing Release Binary
 
 Build the local release artifact first:
@@ -101,21 +125,43 @@ The release image uses only `IDENTITY_DOCKER_DEBIAN_IMAGE`.
 
 ## Runtime Configuration
 
-The compose files set only the container-specific defaults:
+The compose files now set only the container-specific defaults:
 
 - `IDENTITY_HTTP_HOST=0.0.0.0`
 - `IDENTITY_HTTP_PORT=3000`
 - JWT key paths under `/app/secrets`
 - a local-only default `IDENTITY_REFRESH_TOKEN_HMAC_SECRET`
 
-Other `IDENTITY_*` variables are passed through from the host when present.
+Other `IDENTITY_*` variables should live in `.env` for Docker use.
 
-Example with PostgreSQL:
+Example `.env` values for PostgreSQL:
 
 ```bash
-export IDENTITY_PERSISTENCE_BACKEND=postgres
-export IDENTITY_DATABASE_URL=postgres://identity:identity@postgres:5432/identity
+IDENTITY_PERSISTENCE_BACKEND=postgres
+IDENTITY_DATABASE_URL=postgres://identity:identity@postgres:5432/identity
+```
+
+Then start the container:
+
+```bash
 ./scripts/docker_start_source.sh -d
 ```
 
 Do not use the default HMAC secret in production.
+
+## Backend JWT Integration
+
+Other backend services do not need to call this service for every request.
+They can verify the access token as a JWT and read:
+
+- `sub`: platform `internal_user_id`.
+- `sid`: platform session id.
+- `client_id`: platform client id.
+
+Public signing keys are exposed at:
+
+```text
+GET /.well-known/jwks.json
+```
+
+Backends must validate signature, `kid`, `iss`, `aud`, and `exp` before trusting `sub`.

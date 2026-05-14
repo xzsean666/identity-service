@@ -1,6 +1,7 @@
 use chrono::{Duration, Utc};
 use jsonwebtoken::{
     Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, decode_header, encode,
+    jwk::{Jwk, JwkSet, PublicKeyUse},
 };
 use uuid::Uuid;
 
@@ -66,5 +67,13 @@ impl TokenService {
 
     pub fn generate_refresh_token_secret(&self) -> String {
         format!("{}.{}", Uuid::new_v4(), Uuid::new_v4())
+    }
+
+    pub fn public_jwks(&self) -> Result<JwkSet, AppError> {
+        let mut jwk = Jwk::from_encoding_key(&self.encoding_key, Algorithm::RS256)
+            .map_err(|error| AppError::Internal(error.to_string()))?;
+        jwk.common.key_id = Some(self.config.key_id.clone());
+        jwk.common.public_key_use = Some(PublicKeyUse::Signature);
+        Ok(JwkSet { keys: vec![jwk] })
     }
 }

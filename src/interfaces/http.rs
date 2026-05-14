@@ -3,14 +3,20 @@ use std::sync::Arc;
 use axum::{
     Json, Router,
     extract::State,
-    http::{HeaderMap, StatusCode, header::AUTHORIZATION},
+    http::{
+        HeaderMap, HeaderValue, Method, StatusCode,
+        header::{AUTHORIZATION, CONTENT_TYPE},
+    },
     response::IntoResponse,
     routing::{get, post},
 };
+use jsonwebtoken::jwk::JwkSet;
 use serde::{Deserialize, Serialize};
+use tower_http::cors::CorsLayer;
 
 use crate::{
     application::{auth::AuthResponse, bootstrap::ApplicationServices, error::AppError},
+    config::FrontendDirectConfig,
     domain::user::InternalUser,
 };
 
@@ -20,10 +26,12 @@ pub struct HttpState {
 }
 
 pub fn router(services: Arc<ApplicationServices>) -> Router {
+    let frontend_direct = services.http.frontend_direct.clone();
     let state = HttpState { services };
-    Router::new()
+    let router = Router::new()
         .route("/health", get(health))
         .route("/ready", get(readiness))
+        .route("/.well-known/jwks.json", get(jwks))
         .route("/v1/auth/register", post(register))
         .route("/v1/auth/login", post(login))
         .route("/v1/auth/password/change", post(change_password))
@@ -31,7 +39,13 @@ pub fn router(services: Arc<ApplicationServices>) -> Router {
         .route("/v1/auth/refresh", post(refresh))
         .route("/v1/auth/logout", post(logout))
         .route("/v1/users/me", get(current_user))
-        .with_state(state)
+        .with_state(state);
+
+    if frontend_direct.enabled {
+        router.layer(frontend_direct_cors_layer(&frontend_direct))
+    } else {
+        router
+    }
 }
 
 async fn health() -> impl IntoResponse {
@@ -41,6 +55,10 @@ async fn health() -> impl IntoResponse {
 async fn readiness(State(state): State<HttpState>) -> Result<impl IntoResponse, AppError> {
     let report = state.services.readiness_service.check().await?;
     Ok((StatusCode::OK, Json(report)))
+}
+
+async fn jwks(State(state): State<HttpState>) -> Result<Json<JwkSet>, AppError> {
+    state.services.auth_service.public_jwks().map(Json)
 }
 
 #[derive(Deserialize)]
@@ -172,4 +190,20 @@ fn bearer_token(headers: &HeaderMap) -> Result<String, AppError> {
         return Err(AppError::Unauthorized);
     };
     Ok(token.to_owned())
+}
+
+fn frontend_direct_cors_layer(config: &FrontendDirectConfig) -> CorsLayer {
+    let allowed_origins = config
+        .allowed_origins
+        .iter()
+        .map(|origin| {
+            HeaderValue::from_str(origin)
+                .expect("frontend allowed origins are validated during configuration loading")
+        })
+        .collect::<Vec<_>>();
+
+    CorsLayer::new()
+        .allow_origin(allowed_origins)
+        .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
+        .allow_headers([AUTHORIZATION, CONTENT_TYPE])
 }

@@ -17,6 +17,13 @@ pub struct AppConfig {
 pub struct HttpConfig {
     pub host: String,
     pub port: u16,
+    pub frontend_direct: FrontendDirectConfig,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FrontendDirectConfig {
+    pub enabled: bool,
+    pub allowed_origins: Vec<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -107,6 +114,7 @@ impl AppConfig {
             http: HttpConfig {
                 host: optional_env("IDENTITY_HTTP_HOST", "127.0.0.1"),
                 port: parse_u16_env("IDENTITY_HTTP_PORT", 3000)?,
+                frontend_direct: parse_frontend_direct_config()?,
             },
             persistence: parse_persistence_config()?,
             identity_providers: IdentityProviderConfig {
@@ -177,6 +185,50 @@ impl AppConfig {
     }
 }
 
+fn parse_frontend_direct_config() -> Result<FrontendDirectConfig, ConfigError> {
+    let enabled = parse_bool_env("IDENTITY_FRONTEND_DIRECT_ENABLED", false)?;
+    let allowed_origins = parse_csv_env("IDENTITY_FRONTEND_ALLOWED_ORIGINS");
+
+    if enabled && allowed_origins.is_empty() {
+        return Err(ConfigError::MissingRequired(
+            "IDENTITY_FRONTEND_ALLOWED_ORIGINS",
+        ));
+    }
+
+    if !enabled {
+        return Ok(FrontendDirectConfig {
+            enabled,
+            allowed_origins,
+        });
+    }
+
+    for origin in &allowed_origins {
+        if origin.contains('*') {
+            return Err(ConfigError::InvalidValue {
+                name: "IDENTITY_FRONTEND_ALLOWED_ORIGINS",
+                message: "wildcard origins are not allowed in frontend direct mode".to_owned(),
+            });
+        }
+        if origin.chars().any(char::is_whitespace) {
+            return Err(ConfigError::InvalidValue {
+                name: "IDENTITY_FRONTEND_ALLOWED_ORIGINS",
+                message: "origins must be comma-separated without whitespace".to_owned(),
+            });
+        }
+        if !(origin.starts_with("http://") || origin.starts_with("https://")) {
+            return Err(ConfigError::InvalidValue {
+                name: "IDENTITY_FRONTEND_ALLOWED_ORIGINS",
+                message: "origins must start with http:// or https://".to_owned(),
+            });
+        }
+    }
+
+    Ok(FrontendDirectConfig {
+        enabled,
+        allowed_origins,
+    })
+}
+
 fn parse_persistence_config() -> Result<PersistenceConfig, ConfigError> {
     let backend_name = optional_env("IDENTITY_PERSISTENCE_BACKEND", "memory");
     let backend = match backend_name.as_str() {
@@ -223,6 +275,20 @@ fn pem_from_env_or_path(
 
 fn optional_env(name: &str, default_value: &str) -> String {
     env::var(name).unwrap_or_else(|_| default_value.to_owned())
+}
+
+fn parse_csv_env(name: &str) -> Vec<String> {
+    env::var(name)
+        .ok()
+        .map(|value| {
+            value
+                .split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 fn parse_bool_env(name: &'static str, default_value: bool) -> Result<bool, ConfigError> {
@@ -320,6 +386,49 @@ mod tests {
         });
     }
 
+    #[test]
+    fn frontend_direct_mode_requires_explicit_origins() {
+        with_env_lock(|| {
+            unsafe {
+                env::set_var("IDENTITY_FRONTEND_DIRECT_ENABLED", "true");
+                env::remove_var("IDENTITY_FRONTEND_ALLOWED_ORIGINS");
+            }
+
+            let result = parse_frontend_direct_config();
+
+            assert!(matches!(
+                result,
+                Err(ConfigError::MissingRequired(
+                    "IDENTITY_FRONTEND_ALLOWED_ORIGINS"
+                ))
+            ));
+        });
+    }
+
+    #[test]
+    fn frontend_direct_mode_parses_allowed_origins() {
+        with_env_lock(|| {
+            unsafe {
+                env::set_var("IDENTITY_FRONTEND_DIRECT_ENABLED", "true");
+                env::set_var(
+                    "IDENTITY_FRONTEND_ALLOWED_ORIGINS",
+                    "http://localhost:5173,https://app.example.com",
+                );
+            }
+
+            let config = parse_frontend_direct_config().unwrap();
+
+            assert!(config.enabled);
+            assert_eq!(
+                config.allowed_origins,
+                vec![
+                    "http://localhost:5173".to_owned(),
+                    "https://app.example.com".to_owned()
+                ]
+            );
+        });
+    }
+
     fn with_env_lock(run: impl FnOnce()) {
         let lock = ENV_LOCK.get_or_init(|| Mutex::new(()));
         let _guard = lock.lock().unwrap();
@@ -327,6 +436,8 @@ mod tests {
         unsafe {
             env::remove_var("IDENTITY_PERSISTENCE_BACKEND");
             env::remove_var("IDENTITY_DATABASE_URL");
+            env::remove_var("IDENTITY_FRONTEND_DIRECT_ENABLED");
+            env::remove_var("IDENTITY_FRONTEND_ALLOWED_ORIGINS");
         }
     }
 }

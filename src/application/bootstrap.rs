@@ -11,7 +11,7 @@ use crate::{
         session::{SessionRepository, SessionService},
         token::TokenService,
     },
-    config::{AppConfig, PersistenceBackend},
+    config::{AppConfig, HttpConfig, PersistenceBackend},
     infrastructure::{
         memory::{
             InMemoryIdentityRepository, InMemoryLocalCredentialRepository,
@@ -36,6 +36,7 @@ use crate::{
 pub struct ApplicationServices {
     pub auth_service: Arc<AuthService>,
     pub readiness_service: ReadinessService,
+    pub http: HttpConfig,
 }
 
 struct PersistenceServices {
@@ -55,6 +56,7 @@ pub async fn build_auth_service(config: AppConfig) -> Result<Arc<AuthService>, A
 pub async fn build_application_services(
     config: AppConfig,
 ) -> Result<Arc<ApplicationServices>, AppError> {
+    let http = config.http.clone();
     let persistence_services = match config.persistence.backend {
         PersistenceBackend::Memory => {
             let state = InMemoryState::shared();
@@ -133,5 +135,6 @@ pub async fn build_application_services(
     Ok(Arc::new(ApplicationServices {
         auth_service,
         readiness_service,
+        http,
     }))
 }

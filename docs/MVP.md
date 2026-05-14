@@ -177,6 +177,7 @@ The MVP API must cover only these product capabilities:
 - Refresh token.
 - Logout current session.
 - Get current user.
+- Expose platform public signing keys for backend JWT verification.
 
 Health and readiness endpoints are allowed as operational endpoints, but they are not product scope.
 
@@ -195,6 +196,7 @@ Disabled providers return `provider_disabled` instead of disappearing from the r
 | `POST` | `/v1/auth/refresh` | `refresh_token` | new token pair |
 | `POST` | `/v1/auth/logout` | bearer access token | logout result |
 | `GET` | `/v1/users/me` | bearer access token | current user |
+| `GET` | `/.well-known/jwks.json` | none | platform public signing keys |
 | `GET` | `/health` | none | process health |
 | `GET` | `/ready` | none | dependency readiness |
 
@@ -352,7 +354,7 @@ security:
 
 MVP refresh token hashes use keyed HMAC-SHA256 over high-entropy opaque refresh tokens and constant-time comparison.
 
-MVP backend verification of this platform's own JWTs uses statically distributed public key PEM plus `key_id`; a platform JWKS endpoint is post-MVP.
+MVP backend verification of this platform's own JWTs uses `/.well-known/jwks.json` or a statically distributed public key PEM plus `key_id`.
 
 `tokens.audience` is the only MVP JWT `aud` source. Per-client or per-service audiences require the post-MVP client application registry.
 

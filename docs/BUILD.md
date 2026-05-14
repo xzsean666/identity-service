@@ -115,6 +115,9 @@ Optional environment variables:
 ```bash
 export IDENTITY_HTTP_HOST="127.0.0.1"
 export IDENTITY_HTTP_PORT="3000"
+export IDENTITY_FRONTEND_DIRECT_ENABLED="false"
+# Required only when IDENTITY_FRONTEND_DIRECT_ENABLED="true".
+# export IDENTITY_FRONTEND_ALLOWED_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"
 export IDENTITY_PERSISTENCE_BACKEND="memory"
 # Required only when IDENTITY_PERSISTENCE_BACKEND="postgres".
 # export IDENTITY_DATABASE_URL="postgres://identity:identity@localhost:5432/identity"
@@ -179,6 +182,7 @@ POST /v1/auth/logout
 GET  /v1/users/me
 GET  /health
 GET  /ready
+GET  /.well-known/jwks.json
 ```
 
 Disabled providers keep their public routes registered and return `provider_disabled`.
@@ -251,6 +255,9 @@ release/
 ## Docker Startup
 
 Detailed Docker instructions live in `docs/DOCKER.md`.
+
+Minimal Docker runtime configuration lives in `.env.example`.
+Use a local `.env` only for values you actually need to override.
 
 Start from the existing local release binary:
 
