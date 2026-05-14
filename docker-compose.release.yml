@@ -1,0 +1,41 @@
+name: identity-service-release
+
+services:
+  identity-service:
+    image: ${IDENTITY_DOCKER_IMAGE:-identity-service:release-local}
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.release
+      args:
+        DEBIAN_IMAGE: ${IDENTITY_DOCKER_DEBIAN_IMAGE:-debian:bookworm-slim}
+        APT_MIRROR: ${IDENTITY_DOCKER_APT_MIRROR:-http://mirrors.aliyun.com}
+    user: ${IDENTITY_DOCKER_USER:-10001:10001}
+    ports:
+      - "${IDENTITY_DOCKER_HTTP_PORT:-3000}:3000"
+    environment:
+      - IDENTITY_HTTP_HOST=0.0.0.0
+      - IDENTITY_HTTP_PORT=3000
+      - IDENTITY_REFRESH_TOKEN_HMAC_SECRET=${IDENTITY_REFRESH_TOKEN_HMAC_SECRET:-local-docker-refresh-token-hmac-secret-change-before-production}
+      - IDENTITY_TOKEN_PRIVATE_KEY_PEM_PATH=/app/secrets/jwt_private.pem
+      - IDENTITY_TOKEN_PUBLIC_KEY_PEM_PATH=/app/secrets/jwt_public.pem
+      - IDENTITY_PERSISTENCE_BACKEND
+      - IDENTITY_DATABASE_URL
+      - IDENTITY_TOKEN_KEY_ID
+      - IDENTITY_TOKEN_ISSUER
+      - IDENTITY_TOKEN_AUDIENCE
+      - IDENTITY_ACCESS_TOKEN_LIFETIME_SECONDS
+      - IDENTITY_REFRESH_TOKEN_LIFETIME_SECONDS
+      - IDENTITY_SESSION_LIFETIME_SECONDS
+      - IDENTITY_PROVIDER_LOCAL_PASSWORD_ENABLED
+      - IDENTITY_PROVIDER_SUPABASE_ENABLED
+      - IDENTITY_PROVIDER_SUPABASE_AUTO_PROVISION_ENABLED
+      - IDENTITY_PROVIDER_SUPABASE_PROJECT_URL
+      - IDENTITY_PROVIDER_SUPABASE_ISSUER
+      - IDENTITY_PROVIDER_SUPABASE_AUDIENCE
+      - IDENTITY_PROVIDER_SUPABASE_JWKS_URL
+      - IDENTITY_PROVIDER_SUPABASE_JWKS_JSON
+      - IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED
+      - IDENTITY_CLIENT_ID
+      - IDENTITY_CLIENT_TRUSTED_ORIGIN
+    volumes:
+      - ./secrets:/app/secrets:ro

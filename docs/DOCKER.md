@@ -1,0 +1,121 @@
+# Docker Guide
+
+## Goal
+
+This project supports two Docker startup paths:
+
+- Release artifact image: copy and run the existing `release/identity-service` binary.
+- Source build image: compile the Rust project inside Docker, then run the compiled binary.
+
+Both paths use domestic mirror defaults for China-based development:
+
+- Debian apt mirror: `http://mirrors.aliyun.com`.
+- Cargo sparse registry mirror: `sparse+https://rsproxy.cn/index/`.
+- Rustup distribution mirror: `https://rsproxy.cn`.
+
+## Prerequisites
+
+Generate local JWT keys before starting either Docker path:
+
+```bash
+mkdir -p secrets
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out secrets/jwt_private.pem
+openssl rsa -pubout -in secrets/jwt_private.pem -out secrets/jwt_public.pem
+```
+
+The startup scripts run the container as the current host user by default so bind-mounted key files remain readable.
+
+## Option 1 - Run Existing Release Binary
+
+Build the local release artifact first:
+
+```bash
+./scripts/build_release.sh
+```
+
+Start the Docker container from `release/identity-service`:
+
+```bash
+./scripts/docker_start_release.sh
+```
+
+Detached mode:
+
+```bash
+./scripts/docker_start_release.sh -d
+```
+
+This path does not compile Rust inside Docker. It is fastest when `release/identity-service` already exists.
+
+## Option 2 - Compile Inside Docker
+
+Start the Docker container and compile the project in the Docker builder stage:
+
+```bash
+./scripts/docker_start_source.sh
+```
+
+Detached mode:
+
+```bash
+./scripts/docker_start_source.sh -d
+```
+
+This path is slower on the first run, but it creates a runtime image from a binary compiled inside the container.
+Use this path if the host-built release binary has Linux or glibc compatibility issues.
+
+## Service URL
+
+Default local endpoint:
+
+```bash
+curl http://127.0.0.1:3000/health
+curl http://127.0.0.1:3000/ready
+```
+
+Change the host port:
+
+```bash
+IDENTITY_DOCKER_HTTP_PORT=3001 ./scripts/docker_start_source.sh -d
+```
+
+## Mirror Overrides
+
+Override mirrors when needed:
+
+```bash
+IDENTITY_DOCKER_APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn \
+IDENTITY_DOCKER_CARGO_REGISTRY_MIRROR=sparse+https://rsproxy.cn/index/ \
+./scripts/docker_start_source.sh
+```
+
+Override base images if your environment uses a private registry or Docker Hub mirror:
+
+```bash
+IDENTITY_DOCKER_RUST_IMAGE=rust:1-bookworm \
+IDENTITY_DOCKER_DEBIAN_IMAGE=debian:bookworm-slim \
+./scripts/docker_start_source.sh
+```
+
+The release image uses only `IDENTITY_DOCKER_DEBIAN_IMAGE`.
+
+## Runtime Configuration
+
+The compose files set only the container-specific defaults:
+
+- `IDENTITY_HTTP_HOST=0.0.0.0`
+- `IDENTITY_HTTP_PORT=3000`
+- JWT key paths under `/app/secrets`
+- a local-only default `IDENTITY_REFRESH_TOKEN_HMAC_SECRET`
+
+Other `IDENTITY_*` variables are passed through from the host when present.
+
+Example with PostgreSQL:
+
+```bash
+export IDENTITY_PERSISTENCE_BACKEND=postgres
+export IDENTITY_DATABASE_URL=postgres://identity:identity@postgres:5432/identity
+./scripts/docker_start_source.sh -d
+```
+
+Do not use the default HMAC secret in production.

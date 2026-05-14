@@ -240,6 +240,7 @@ Completed content:
 - Registration and binding policy.
 - Token policy with RS256 access tokens.
 - Release build script increments the patch version, builds release binaries, and replaces `release/` with only the latest successful build.
+- Docker startup supports a prebuilt release image path and a source-compiling image path, both configured with China-friendly apt/Cargo/Rustup mirror defaults.
 
 ## Pending Tasks
 
@@ -274,6 +275,8 @@ Completed Step 4 work:
 25. Transactional PostgreSQL local password change with refresh-token rotation.
 26. Full E2E HTTP flow tests for memory and optional PostgreSQL backends.
 27. Release build script that bumps the package patch version and writes only the latest successful build into `release/`.
+28. Docker release startup path that copies `release/identity-service`.
+29. Docker source startup path that compiles Rust inside Docker with domestic mirror defaults.
 
 Open implementation decisions:
 
@@ -336,8 +339,9 @@ For the next AI session:
 6. Read `docs/INTEGRATION.md`.
 7. Continue inside the MVP boundary in `docs/MVP.md`.
 8. Use `./scripts/build_release.sh` for local release artifacts; `release/` is generated and ignored by Git.
-9. Prefer deployment and key-management hardening as the next implementation focus.
-10. Commit each major step.
+9. Use `docs/DOCKER.md` for Docker startup and mirror configuration.
+10. Prefer deployment and key-management hardening as the next implementation focus.
+11. Commit each major step.
 
 ## Risks and Unknowns
 
@@ -426,11 +430,11 @@ Current known commits:
 - `feat: document module expansion rules`
 - `feat: refine modular architecture audit findings`
 
-Latest release build work should be committed with:
+Latest Docker startup work should be committed with:
 
 ```bash
 git add .
-git commit -m "chore: add release build script"
+git commit -m "chore: add docker startup builds"
 ```
 
 ## Handoff Maintenance Criteria

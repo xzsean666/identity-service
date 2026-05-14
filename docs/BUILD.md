@@ -20,11 +20,18 @@ identity-service/
     ARCHITECTURE.md
     SPEC.md
     BUILD.md
+    DOCKER.md
     TECH_STACK.md
     MVP.md
     MODULE_EXPANSION.md
     INTEGRATION.md
     nextsession.md
+  docker/
+    Dockerfile.release
+    Dockerfile.source
+    configure_debian_apt_mirror.sh
+  docker-compose.release.yml
+  docker-compose.source.yml
   src/
     application/
     config/
@@ -38,6 +45,8 @@ identity-service/
     main.rs
   scripts/
     build_release.sh
+    docker_start_release.sh
+    docker_start_source.sh
 ```
 
 ## Implemented MVP Increment
@@ -65,6 +74,7 @@ Current implementation limits:
 - Migration execution is handled by the `migrate` binary, backed by the SQL files in `migrations/`.
 - JWT revocation is stateless for external consumers; logout and password change revoke refresh-token state, while already issued access tokens remain valid until `exp`.
 - Release builds are created by `scripts/build_release.sh`; the generated `release/` directory is local-only and ignored by Git.
+- Docker startup supports both a prebuilt `release/identity-service` image path and a source-compiling image path.
 
 ## Prerequisites
 
@@ -237,6 +247,36 @@ release/
 ```
 
 `release/` is ignored by Git. Commit the script, docs, `Cargo.toml`, and `Cargo.lock` version changes, but do not commit compiled binaries unless a separate distribution process explicitly requires it.
+
+## Docker Startup
+
+Detailed Docker instructions live in `docs/DOCKER.md`.
+
+Start from the existing local release binary:
+
+```bash
+./scripts/build_release.sh
+./scripts/docker_start_release.sh -d
+```
+
+Start from a Docker build that compiles the Rust project:
+
+```bash
+./scripts/docker_start_source.sh -d
+```
+
+Both Docker paths default to China-friendly mirrors:
+
+- Debian apt: `http://mirrors.aliyun.com`.
+- Cargo sparse registry: `sparse+https://rsproxy.cn/index/`.
+- Rustup: `https://rsproxy.cn`.
+
+Override examples:
+
+```bash
+IDENTITY_DOCKER_APT_MIRROR=http://mirrors.tuna.tsinghua.edu.cn ./scripts/docker_start_source.sh
+IDENTITY_DOCKER_CARGO_REGISTRY_MIRROR=sparse+https://rsproxy.cn/index/ ./scripts/docker_start_source.sh
+```
 
 ## Development Commands
 

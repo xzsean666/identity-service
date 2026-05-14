@@ -1,0 +1,5 @@
+/.git
+/target
+/secrets
+/release/*
+!/release/identity-service
