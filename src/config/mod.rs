@@ -121,37 +121,7 @@ impl AppConfig {
                 local_password: ProviderToggle {
                     enabled: parse_bool_env("IDENTITY_PROVIDER_LOCAL_PASSWORD_ENABLED", true)?,
                 },
-                supabase: {
-                    let issuer = optional_env(
-                        "IDENTITY_PROVIDER_SUPABASE_ISSUER",
-                        "https://example.supabase.co/auth/v1",
-                    );
-                    SupabaseProviderConfig {
-                        enabled: parse_bool_env("IDENTITY_PROVIDER_SUPABASE_ENABLED", true)?,
-                        auto_provision_enabled: parse_bool_env(
-                            "IDENTITY_PROVIDER_SUPABASE_AUTO_PROVISION_ENABLED",
-                            true,
-                        )?,
-                        project_url: optional_env(
-                            "IDENTITY_PROVIDER_SUPABASE_PROJECT_URL",
-                            "https://example.supabase.co",
-                        ),
-                        jwks_url: optional_env(
-                            "IDENTITY_PROVIDER_SUPABASE_JWKS_URL",
-                            &format!("{issuer}/.well-known/jwks.json"),
-                        ),
-                        jwks_json: env::var("IDENTITY_PROVIDER_SUPABASE_JWKS_JSON").ok(),
-                        fixture_tokens_enabled: parse_bool_env(
-                            "IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED",
-                            false,
-                        )?,
-                        issuer,
-                        audience: optional_env(
-                            "IDENTITY_PROVIDER_SUPABASE_AUDIENCE",
-                            "authenticated",
-                        ),
-                    }
-                },
+                supabase: parse_supabase_provider_config()?,
             },
             client: ClientConfig {
                 client_id: optional_env("IDENTITY_CLIENT_ID", "identity-service-mvp"),
@@ -183,6 +153,92 @@ impl AppConfig {
             },
         })
     }
+}
+
+fn parse_supabase_provider_config() -> Result<SupabaseProviderConfig, ConfigError> {
+    let enabled = parse_bool_env("IDENTITY_PROVIDER_SUPABASE_ENABLED", false)?;
+    let project_url = resolve_supabase_project_url(enabled)?;
+    let issuer = optional_non_empty_env("IDENTITY_PROVIDER_SUPABASE_ISSUER")
+        .map(|issuer| {
+            normalize_url_without_trailing_slash("IDENTITY_PROVIDER_SUPABASE_ISSUER", issuer)
+        })
+        .transpose()?
+        .unwrap_or_else(|| format!("{project_url}/auth/v1"));
+    let jwks_url = optional_non_empty_env("IDENTITY_PROVIDER_SUPABASE_JWKS_URL")
+        .map(|jwks_url| {
+            normalize_url_without_trailing_slash("IDENTITY_PROVIDER_SUPABASE_JWKS_URL", jwks_url)
+        })
+        .transpose()?
+        .unwrap_or_else(|| format!("{issuer}/.well-known/jwks.json"));
+
+    Ok(SupabaseProviderConfig {
+        enabled,
+        auto_provision_enabled: parse_bool_env(
+            "IDENTITY_PROVIDER_SUPABASE_AUTO_PROVISION_ENABLED",
+            true,
+        )?,
+        project_url,
+        issuer,
+        audience: optional_env("IDENTITY_PROVIDER_SUPABASE_AUDIENCE", "authenticated"),
+        jwks_url,
+        jwks_json: env::var("IDENTITY_PROVIDER_SUPABASE_JWKS_JSON").ok(),
+        fixture_tokens_enabled: parse_bool_env(
+            "IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED",
+            false,
+        )?,
+    })
+}
+
+fn resolve_supabase_project_url(enabled: bool) -> Result<String, ConfigError> {
+    if let Some(project_url) = optional_non_empty_env("IDENTITY_PROVIDER_SUPABASE_PROJECT_URL") {
+        return normalize_url_without_trailing_slash(
+            "IDENTITY_PROVIDER_SUPABASE_PROJECT_URL",
+            project_url,
+        );
+    }
+
+    if let Some(project_id) = optional_non_empty_env("IDENTITY_PROVIDER_SUPABASE_PROJECT_ID") {
+        validate_supabase_project_id(&project_id)?;
+        return Ok(format!("https://{project_id}.supabase.co"));
+    }
+
+    if enabled {
+        return Err(ConfigError::MissingRequired(
+            "IDENTITY_PROVIDER_SUPABASE_PROJECT_ID",
+        ));
+    }
+
+    Ok("https://example.supabase.co".to_owned())
+}
+
+fn validate_supabase_project_id(project_id: &str) -> Result<(), ConfigError> {
+    if project_id.is_empty()
+        || !project_id
+            .chars()
+            .all(|character| character.is_ascii_lowercase() || character.is_ascii_digit())
+    {
+        return Err(ConfigError::InvalidValue {
+            name: "IDENTITY_PROVIDER_SUPABASE_PROJECT_ID",
+            message: "must contain only lowercase letters and digits".to_owned(),
+        });
+    }
+
+    Ok(())
+}
+
+fn normalize_url_without_trailing_slash(
+    name: &'static str,
+    value: String,
+) -> Result<String, ConfigError> {
+    let normalized = value.trim().trim_end_matches('/').to_owned();
+    if !(normalized.starts_with("http://") || normalized.starts_with("https://")) {
+        return Err(ConfigError::InvalidValue {
+            name,
+            message: "must start with http:// or https://".to_owned(),
+        });
+    }
+
+    Ok(normalized)
 }
 
 fn parse_frontend_direct_config() -> Result<FrontendDirectConfig, ConfigError> {
@@ -275,6 +331,13 @@ fn pem_from_env_or_path(
 
 fn optional_env(name: &str, default_value: &str) -> String {
     env::var(name).unwrap_or_else(|_| default_value.to_owned())
+}
+
+fn optional_non_empty_env(name: &str) -> Option<String> {
+    env::var(name)
+        .ok()
+        .map(|value| value.trim().to_owned())
+        .filter(|value| !value.is_empty())
 }
 
 fn parse_csv_env(name: &str) -> Vec<String> {
@@ -429,15 +492,114 @@ mod tests {
         });
     }
 
+    #[test]
+    fn supabase_defaults_to_disabled_without_project_id() {
+        with_env_lock(|| {
+            let config = parse_supabase_provider_config().unwrap();
+
+            assert!(!config.enabled);
+            assert_eq!(config.project_url, "https://example.supabase.co");
+            assert_eq!(config.issuer, "https://example.supabase.co/auth/v1");
+            assert_eq!(
+                config.jwks_url,
+                "https://example.supabase.co/auth/v1/.well-known/jwks.json"
+            );
+            assert_eq!(config.audience, "authenticated");
+        });
+    }
+
+    #[test]
+    fn supabase_enabled_requires_project_id_or_project_url() {
+        with_env_lock(|| {
+            unsafe {
+                env::set_var("IDENTITY_PROVIDER_SUPABASE_ENABLED", "true");
+            }
+
+            let result = parse_supabase_provider_config();
+
+            assert!(matches!(
+                result,
+                Err(ConfigError::MissingRequired(
+                    "IDENTITY_PROVIDER_SUPABASE_PROJECT_ID"
+                ))
+            ));
+        });
+    }
+
+    #[test]
+    fn supabase_project_id_derives_standard_urls() {
+        with_env_lock(|| {
+            unsafe {
+                env::set_var("IDENTITY_PROVIDER_SUPABASE_ENABLED", "true");
+                env::set_var(
+                    "IDENTITY_PROVIDER_SUPABASE_PROJECT_ID",
+                    "ahjhppptrqnrhcpdpcew",
+                );
+            }
+
+            let config = parse_supabase_provider_config().unwrap();
+
+            assert!(config.enabled);
+            assert_eq!(
+                config.project_url,
+                "https://ahjhppptrqnrhcpdpcew.supabase.co"
+            );
+            assert_eq!(
+                config.issuer,
+                "https://ahjhppptrqnrhcpdpcew.supabase.co/auth/v1"
+            );
+            assert_eq!(
+                config.jwks_url,
+                "https://ahjhppptrqnrhcpdpcew.supabase.co/auth/v1/.well-known/jwks.json"
+            );
+        });
+    }
+
+    #[test]
+    fn supabase_project_url_override_trims_trailing_slash() {
+        with_env_lock(|| {
+            unsafe {
+                env::set_var("IDENTITY_PROVIDER_SUPABASE_ENABLED", "true");
+                env::set_var(
+                    "IDENTITY_PROVIDER_SUPABASE_PROJECT_URL",
+                    "https://auth.example.com/",
+                );
+            }
+
+            let config = parse_supabase_provider_config().unwrap();
+
+            assert_eq!(config.project_url, "https://auth.example.com");
+            assert_eq!(config.issuer, "https://auth.example.com/auth/v1");
+            assert_eq!(
+                config.jwks_url,
+                "https://auth.example.com/auth/v1/.well-known/jwks.json"
+            );
+        });
+    }
+
     fn with_env_lock(run: impl FnOnce()) {
         let lock = ENV_LOCK.get_or_init(|| Mutex::new(()));
         let _guard = lock.lock().unwrap();
+        clear_test_env();
         run();
+        clear_test_env();
+    }
+
+    fn clear_test_env() {
         unsafe {
             env::remove_var("IDENTITY_PERSISTENCE_BACKEND");
             env::remove_var("IDENTITY_DATABASE_URL");
             env::remove_var("IDENTITY_FRONTEND_DIRECT_ENABLED");
             env::remove_var("IDENTITY_FRONTEND_ALLOWED_ORIGINS");
+            env::remove_var("IDENTITY_PROVIDER_SUPABASE_ENABLED");
+            env::remove_var("IDENTITY_PROVIDER_SUPABASE_AUTO_PROVISION_ENABLED");
+            env::remove_var("IDENTITY_PROVIDER_SUPABASE_PROJECT_ID");
+            env::remove_var("IDENTITY_PROVIDER_SUPABASE_PROJECT_URL");
+            env::remove_var("IDENTITY_PROVIDER_SUPABASE_ISSUER");
+            env::remove_var("IDENTITY_PROVIDER_SUPABASE_AUDIENCE");
+            env::remove_var("IDENTITY_PROVIDER_SUPABASE_JWKS_URL");
+            env::remove_var("IDENTITY_PROVIDER_SUPABASE_JWKS_JSON");
+            env::remove_var("IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED");
         }
     }
 }

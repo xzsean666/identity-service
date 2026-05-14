@@ -131,11 +131,13 @@ export IDENTITY_REFRESH_TOKEN_LIFETIME_SECONDS="2592000"
 export IDENTITY_SESSION_LIFETIME_SECONDS="2592000"
 export IDENTITY_PROVIDER_LOCAL_PASSWORD_ENABLED="true"
 export IDENTITY_PROVIDER_SUPABASE_ENABLED="true"
+export IDENTITY_PROVIDER_SUPABASE_PROJECT_ID="ahjhppptrqnrhcpdpcew"
 export IDENTITY_PROVIDER_SUPABASE_AUTO_PROVISION_ENABLED="true"
-export IDENTITY_PROVIDER_SUPABASE_PROJECT_URL="https://example.supabase.co"
-export IDENTITY_PROVIDER_SUPABASE_ISSUER="https://example.supabase.co/auth/v1"
 export IDENTITY_PROVIDER_SUPABASE_AUDIENCE="authenticated"
-export IDENTITY_PROVIDER_SUPABASE_JWKS_URL="https://example.supabase.co/auth/v1/.well-known/jwks.json"
+# Optional advanced overrides for custom Supabase auth domains.
+# export IDENTITY_PROVIDER_SUPABASE_PROJECT_URL="https://example.supabase.co"
+# export IDENTITY_PROVIDER_SUPABASE_ISSUER="https://example.supabase.co/auth/v1"
+# export IDENTITY_PROVIDER_SUPABASE_JWKS_URL="https://example.supabase.co/auth/v1/.well-known/jwks.json"
 # Optional: inline JWKS JSON for controlled test or legacy environments.
 # export IDENTITY_PROVIDER_SUPABASE_JWKS_JSON='{"keys":[]}'
 export IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED="false"
@@ -196,6 +198,15 @@ Supabase keys are intentionally not part of this service's MVP backend configura
 - The Supabase `anon` key is used by the frontend or client app to log in with Supabase.
 - The Supabase `service_role` key is not used by this IAM MVP and must not be exposed to browser clients.
 - This IAM service verifies the resulting Supabase access token through the configured Supabase JWKS URL.
+
+For a standard Supabase project, this IAM service only needs:
+
+```bash
+IDENTITY_PROVIDER_SUPABASE_ENABLED=true
+IDENTITY_PROVIDER_SUPABASE_PROJECT_ID=ahjhppptrqnrhcpdpcew
+```
+
+The service derives the Supabase project URL, issuer, and JWKS URL from the project ID.
 
 The adapter:
 

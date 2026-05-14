@@ -42,15 +42,19 @@ IDENTITY_REFRESH_TOKEN_HMAC_SECRET=replace-with-a-long-local-secret
 
 Supabase is still part of the MVP.
 It is disabled in the minimal local `.env.example` so Docker can start without a real Supabase project.
-Enable it by changing:
+For a normal Supabase project, enable it with only:
 
 ```bash
 IDENTITY_PROVIDER_SUPABASE_ENABLED=true
-IDENTITY_PROVIDER_SUPABASE_PROJECT_URL=https://your-project.supabase.co
-IDENTITY_PROVIDER_SUPABASE_ISSUER=https://your-project.supabase.co/auth/v1
-IDENTITY_PROVIDER_SUPABASE_AUDIENCE=authenticated
-IDENTITY_PROVIDER_SUPABASE_JWKS_URL=https://your-project.supabase.co/auth/v1/.well-known/jwks.json
+IDENTITY_PROVIDER_SUPABASE_PROJECT_ID=ahjhppptrqnrhcpdpcew
 ```
+
+The service derives these values automatically:
+
+- project URL: `https://ahjhppptrqnrhcpdpcew.supabase.co`
+- issuer: `https://ahjhppptrqnrhcpdpcew.supabase.co/auth/v1`
+- JWKS URL: `https://ahjhppptrqnrhcpdpcew.supabase.co/auth/v1/.well-known/jwks.json`
+- audience: `authenticated`
 
 Supabase keys are not configured in this IAM service for the MVP.
 

@@ -243,6 +243,7 @@ Completed content:
 - Docker startup supports a prebuilt release image path and a source-compiling image path, both configured with China-friendly apt/Cargo/Rustup mirror defaults.
 - Docker runtime env is simplified through `.env.example` and optional local `.env`.
 - Supabase remains an MVP provider and has an optional enablement block in `.env.example`.
+- Supabase standard configuration is derived from `IDENTITY_PROVIDER_SUPABASE_PROJECT_ID`.
 - Frontend direct mode is controlled by explicit CORS origins.
 - Backend services can verify platform JWTs through `/.well-known/jwks.json` and read `sub` as `internal_user_id`.
 

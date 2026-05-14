@@ -97,6 +97,7 @@ identity_providers:
     enabled: true
   supabase:
     enabled: true
+    project_id: "ahjhppptrqnrhcpdpcew"
     auto_provision_enabled: true
   wechat:
     enabled: false
@@ -332,8 +333,7 @@ identity_providers:
   supabase:
     enabled: true
     auto_provision_enabled: true
-    project_url: "https://example.supabase.co"
-    issuer: "https://example.supabase.co/auth/v1"
+    project_id: "ahjhppptrqnrhcpdpcew"
     audience: "authenticated"
 client:
   client_id: "identity-service-mvp"
