@@ -2,13 +2,14 @@ use std::sync::Arc;
 
 use identity_service::{
     application::{
-        error::AppError, identity_binding::IdentityBindingService, session::SessionService,
+        error::AppError, identity_binding::IdentityBindingService,
+        password_change::PasswordChangeService, session::SessionService,
     },
     config::{ClientConfig, SessionConfig},
     domain::identity::{BindingMode, NormalizedExternalIdentity},
     infrastructure::postgres::{
-        PostgresIdentityRepository, PostgresLocalCredentialRepository, PostgresSessionRepository,
-        PostgresState,
+        PostgresIdentityRepository, PostgresLocalCredentialRepository,
+        PostgresPasswordChangeRepository, PostgresSessionRepository, PostgresState,
     },
     providers::{
         IdentityProviderAdapter, ProviderVerificationRequest, local_password::LocalPasswordProvider,
@@ -111,6 +112,111 @@ async fn postgres_repositories_support_mvp_identity_and_session_flow() {
             .await,
         Err(AppError::Unauthorized)
     ));
+
+    identity_binding
+        .delete_user(user.internal_user_id)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn postgres_password_change_updates_hash_and_rotates_refresh_tokens() {
+    let Some(database_url) = std::env::var("IDENTITY_DATABASE_URL").ok() else {
+        return;
+    };
+    let state = PostgresState::connect(&database_url)
+        .await
+        .expect("IDENTITY_DATABASE_URL must point to a running PostgreSQL database");
+    assert_mvp_schema_exists(&state.pool).await;
+
+    let identity_binding = IdentityBindingService::new(Arc::new(PostgresIdentityRepository::new(
+        state.pool.clone(),
+    )));
+    let local_password_provider = LocalPasswordProvider::new(
+        Arc::new(PostgresLocalCredentialRepository::new(state.pool.clone())),
+        true,
+    );
+    let session_config = SessionConfig {
+        refresh_token_lifetime_seconds: 3600,
+        session_lifetime_seconds: 3600,
+    };
+    let session_service = SessionService::new(
+        Arc::new(PostgresSessionRepository::new(state.pool.clone())),
+        session_config.clone(),
+        ClientConfig {
+            client_id: "postgres-password-change-test".to_owned(),
+            trusted_origin: None,
+        },
+        RefreshTokenHasher::new("postgres-password-change-test-secret".to_owned()),
+    );
+    let password_change_service = PasswordChangeService::new(
+        Arc::new(PostgresPasswordChangeRepository::new(state.pool.clone())),
+        session_config,
+        RefreshTokenHasher::new("postgres-password-change-test-secret".to_owned()),
+    );
+
+    let unique_username = format!("postgres-password-{}@example.test", Uuid::new_v4());
+    let user = identity_binding.create_active_user().await.unwrap();
+    let credential = local_password_provider
+        .create_credential_for_user(
+            user.internal_user_id,
+            &unique_username,
+            "old correct horse battery staple",
+        )
+        .await
+        .unwrap();
+    let normalized_identity =
+        NormalizedExternalIdentity::local_password(credential.credential_id, &credential.username);
+    let user = identity_binding
+        .resolve_identity(
+            normalized_identity,
+            BindingMode::LinkToExisting(user.internal_user_id),
+        )
+        .await
+        .unwrap();
+    let (session, old_refresh) = session_service
+        .create_session(&user, "local_password", "old-refresh-secret".to_owned())
+        .await
+        .unwrap();
+
+    let prepared_change = local_password_provider
+        .prepare_password_change(
+            user.internal_user_id,
+            "old correct horse battery staple",
+            "new correct horse battery staple",
+        )
+        .await
+        .unwrap();
+    let new_refresh = password_change_service
+        .change_password_and_rotate_refresh_tokens(
+            user.internal_user_id,
+            session.session_id,
+            prepared_change,
+            "new-refresh-secret",
+        )
+        .await
+        .unwrap();
+
+    assert_refresh_status(&state.pool, old_refresh.refresh_token_id, "revoked").await;
+    assert_refresh_status(&state.pool, new_refresh.refresh_token_id, "active").await;
+    assert!(
+        local_password_provider
+            .verify(ProviderVerificationRequest::LocalPassword {
+                username: unique_username.clone(),
+                password: "old correct horse battery staple".to_owned(),
+            })
+            .await
+            .is_err()
+    );
+    assert!(
+        local_password_provider
+            .verify(ProviderVerificationRequest::LocalPassword {
+                username: unique_username,
+                password: "new correct horse battery staple".to_owned(),
+            })
+            .await
+            .is_ok()
+    );
 
     identity_binding
         .delete_user(user.internal_user_id)

@@ -7,7 +7,10 @@ use uuid::Uuid;
 
 use crate::{
     application::{
-        error::AppError, identity_binding::IdentityRepository, readiness::ReadinessDependency,
+        error::AppError,
+        identity_binding::IdentityRepository,
+        password_change::{PasswordChangeCommand, PasswordChangeRepository},
+        readiness::ReadinessDependency,
         session::SessionRepository,
     },
     domain::{
@@ -15,7 +18,9 @@ use crate::{
         session::{RefreshTokenRecord, RefreshTokenStatus, Session, SessionStatus},
         user::InternalUser,
     },
-    providers::local_password::{LocalCredential, LocalCredentialRepository},
+    providers::local_password::{
+        LocalCredential, LocalCredentialRepository, LocalCredentialStatus,
+    },
 };
 
 pub type SharedState = Arc<Mutex<InMemoryState>>;
@@ -275,6 +280,105 @@ pub struct InMemorySessionRepository {
 impl InMemorySessionRepository {
     pub fn new(state: SharedState) -> Self {
         Self { state }
+    }
+}
+
+#[derive(Clone)]
+pub struct InMemoryPasswordChangeRepository {
+    state: SharedState,
+}
+
+impl InMemoryPasswordChangeRepository {
+    pub fn new(state: SharedState) -> Self {
+        Self { state }
+    }
+}
+
+#[async_trait]
+impl PasswordChangeRepository for InMemoryPasswordChangeRepository {
+    async fn change_password_and_rotate_refresh_tokens(
+        &self,
+        command: PasswordChangeCommand,
+    ) -> Result<RefreshTokenRecord, AppError> {
+        let mut state = self.state.lock();
+        let session = state
+            .sessions
+            .get(&command.current_session_id)
+            .cloned()
+            .ok_or(AppError::Unauthorized)?;
+        if session.internal_user_id != command.internal_user_id
+            || session.status != SessionStatus::Active
+            || session.expires_at <= command.now
+        {
+            return Err(AppError::Unauthorized);
+        }
+
+        let Some(current_key) = state.local_credentials_by_username.iter().find_map(
+            |(normalized_username, current)| {
+                (current.internal_user_id == command.internal_user_id)
+                    .then(|| normalized_username.clone())
+            },
+        ) else {
+            return Err(AppError::InvalidCredentials);
+        };
+        let current_credential = state
+            .local_credentials_by_username
+            .get(&current_key)
+            .ok_or(AppError::InvalidCredentials)?;
+        if current_credential.status != LocalCredentialStatus::Active
+            || current_credential.password_hash
+                != command.prepared_password_change.previous_password_hash
+        {
+            return Err(AppError::InvalidCredentials);
+        }
+
+        if current_key
+            != command
+                .prepared_password_change
+                .credential
+                .normalized_username
+            && state.local_credentials_by_username.contains_key(
+                &command
+                    .prepared_password_change
+                    .credential
+                    .normalized_username,
+            )
+        {
+            return Err(AppError::IdentityConflict);
+        }
+
+        state.local_credentials_by_username.remove(&current_key);
+        state.local_credentials_by_username.insert(
+            command
+                .prepared_password_change
+                .credential
+                .normalized_username
+                .clone(),
+            command.prepared_password_change.credential,
+        );
+
+        for refresh_record in state.refresh_tokens_by_hash.values_mut() {
+            if refresh_record.internal_user_id == command.internal_user_id {
+                refresh_record.status = RefreshTokenStatus::Revoked;
+                refresh_record.revoked_at = Some(command.now);
+            }
+        }
+        let new_record = RefreshTokenRecord {
+            refresh_token_id: Uuid::new_v4(),
+            session_id: command.current_session_id,
+            internal_user_id: command.internal_user_id,
+            token_family_id: Uuid::new_v4(),
+            token_hash: command.new_token_hash,
+            status: RefreshTokenStatus::Active,
+            issued_at: command.now,
+            expires_at: command.now + Duration::seconds(command.refresh_token_lifetime_seconds),
+            consumed_at: None,
+            revoked_at: None,
+        };
+        state
+            .refresh_tokens_by_hash
+            .insert(new_record.token_hash.clone(), new_record.clone());
+        Ok(new_record)
     }
 }
 

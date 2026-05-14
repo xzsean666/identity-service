@@ -270,12 +270,12 @@ Completed Step 4 work:
 22. PostgreSQL migration runner binary.
 23. Backend-aware readiness endpoint.
 24. Supabase remote JWKS caching with refresh on missing `kid`.
+25. Transactional PostgreSQL local password change with refresh-token rotation.
 
 Open implementation decisions:
 
 1. Production key storage strategy.
 2. Deployment target.
-3. Whether to add a cross-repository unit-of-work for strict password-change atomicity.
 
 Fixed decisions:
 
@@ -292,8 +292,8 @@ Fixed decisions:
 
 Next implementation increment:
 
-1. Add a cross-repository unit-of-work if password hash update and refresh-family rotation must be committed in one database transaction.
-2. Add a deployment example after target runtime is selected.
+1. Add a deployment example after target runtime is selected.
+2. Add production key storage guidance.
 
 ### Post-MVP Provider Increment
 
@@ -332,7 +332,7 @@ For the next AI session:
 5. Read `docs/MODULE_EXPANSION.md`.
 6. Read `docs/INTEGRATION.md`.
 7. Continue inside the MVP boundary in `docs/MVP.md`.
-8. Prefer transaction hardening as the next implementation focus.
+8. Prefer deployment and key-management hardening as the next implementation focus.
 9. Commit each major step.
 
 ## Risks and Unknowns

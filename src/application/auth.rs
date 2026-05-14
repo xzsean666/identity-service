@@ -5,7 +5,8 @@ use serde::Serialize;
 use crate::{
     application::{
         error::AppError, identity_binding::IdentityBindingService,
-        provider_registry::ProviderRegistry, session::SessionService, token::TokenService,
+        password_change::PasswordChangeService, provider_registry::ProviderRegistry,
+        session::SessionService, token::TokenService,
     },
     config::SupabaseProviderConfig,
     domain::{
@@ -23,6 +24,7 @@ pub struct AuthService {
     provider_registry: ProviderRegistry,
     identity_binding: IdentityBindingService,
     session_service: SessionService,
+    password_change_service: PasswordChangeService,
     token_service: TokenService,
     local_password_provider: Arc<LocalPasswordProvider>,
     supabase_config: SupabaseProviderConfig,
@@ -39,6 +41,7 @@ impl AuthService {
         provider_registry: ProviderRegistry,
         identity_binding: IdentityBindingService,
         session_service: SessionService,
+        password_change_service: PasswordChangeService,
         token_service: TokenService,
         local_password_provider: Arc<LocalPasswordProvider>,
         supabase_config: SupabaseProviderConfig,
@@ -47,6 +50,7 @@ impl AuthService {
             provider_registry,
             identity_binding,
             session_service,
+            password_change_service,
             token_service,
             local_password_provider,
             supabase_config,
@@ -162,13 +166,19 @@ impl AuthService {
         if session.internal_user_id != claims.sub {
             return Err(AppError::Unauthorized);
         }
-        self.local_password_provider
-            .change_password(claims.sub, &current_password, &new_password)
+        let prepared_password_change = self
+            .local_password_provider
+            .prepare_password_change(claims.sub, &current_password, &new_password)
             .await?;
         let next_refresh_token = self.token_service.generate_refresh_token_secret();
         let refresh_record = self
-            .session_service
-            .rotate_all_user_refresh_families(claims.sub, claims.sid, next_refresh_token.clone())
+            .password_change_service
+            .change_password_and_rotate_refresh_tokens(
+                claims.sub,
+                claims.sid,
+                prepared_password_change,
+                &next_refresh_token,
+            )
             .await?;
         let session = self
             .session_service

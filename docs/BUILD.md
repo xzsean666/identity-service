@@ -273,12 +273,12 @@ Implemented PostgreSQL behavior:
 - Runtime wiring selects PostgreSQL repositories when `IDENTITY_PERSISTENCE_BACKEND=postgres`.
 - Session creation, refresh token exchange, reuse detection, logout revocation, and refresh-family rotation use PostgreSQL transactions.
 - Refresh token exchange locks the current refresh-token row with `FOR UPDATE`.
+- Local password change updates the credential hash, revokes old refresh-token state, and inserts the new refresh-token family in one PostgreSQL transaction.
 - The `migrate` binary applies and reverts SQLx-tracked migrations.
 
 Known persistence hardening left after this increment:
 
-- Add a cross-repository unit-of-work boundary if strict single-transaction password-hash update plus refresh-family rotation is required.
-- Add readiness checks that include PostgreSQL when the backend is `postgres`.
+- Add deployment-specific backup, restore, and migration rollout guidance after the runtime target is selected.
 
 Do not add Redis to the MVP unless a specific runtime need appears.
 

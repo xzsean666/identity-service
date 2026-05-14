@@ -36,6 +36,12 @@ pub enum LocalCredentialStatus {
     Disabled,
 }
 
+#[derive(Clone, Debug)]
+pub struct PreparedPasswordChange {
+    pub credential: LocalCredential,
+    pub previous_password_hash: String,
+}
+
 #[async_trait]
 pub trait LocalCredentialRepository: Send + Sync {
     async fn create_credential(
@@ -128,6 +134,20 @@ impl LocalPasswordProvider {
         current_password: &str,
         new_password: &str,
     ) -> Result<(), AppError> {
+        let prepared_change = self
+            .prepare_password_change(internal_user_id, current_password, new_password)
+            .await?;
+        self.credential_repository
+            .update_for_internal_user_id(internal_user_id, prepared_change.credential)
+            .await
+    }
+
+    pub async fn prepare_password_change(
+        &self,
+        internal_user_id: Uuid,
+        current_password: &str,
+        new_password: &str,
+    ) -> Result<PreparedPasswordChange, AppError> {
         validate_password(new_password)?;
         let mut credential = self
             .credential_repository
@@ -139,11 +159,14 @@ impl LocalPasswordProvider {
             return Err(AppError::InvalidCredentials);
         }
         Self::verify_password(current_password, &credential.password_hash)?;
+        let previous_password_hash = credential.password_hash.clone();
         credential.password_hash = Self::hash_password(new_password)?;
         credential.updated_at = Utc::now();
-        self.credential_repository
-            .update_for_internal_user_id(internal_user_id, credential)
-            .await
+
+        Ok(PreparedPasswordChange {
+            credential,
+            previous_password_hash,
+        })
     }
 }
 

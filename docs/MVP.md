@@ -397,7 +397,7 @@ Current Step 4 implementation note:
 - `cargo run --bin migrate -- up` applies the MVP PostgreSQL migration.
 - `/ready` checks memory readiness for the default backend and PostgreSQL readiness for the `postgres` backend.
 - PostgreSQL refresh-token exchange, reuse detection, logout revocation, and refresh-family rotation run inside repository transactions.
-- A strict single transaction covering both password-hash update and refresh-family rotation remains a hardening item if this deployment requires that guarantee.
+- PostgreSQL local password change updates the password hash, revokes old refresh-token state, and creates the new refresh-token family in one transaction.
 
 Refresh token exchange policy:
 

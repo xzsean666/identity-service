@@ -676,6 +676,7 @@ Refresh token behavior:
 - Session module owns refresh token records, families, rotation, reuse detection, and revocation.
 - Token module may generate refresh token secrets but must not persist refresh token state.
 - Refresh token exchange consumes the old token and creates the new token in one transaction.
+- Local password change updates the password hash and rotates refresh-token state in one persistence transaction for PostgreSQL.
 
 ### MVP Client Context
 

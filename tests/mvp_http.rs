@@ -141,6 +141,58 @@ async fn login_refresh_then_logout_revokes_current_session() {
 }
 
 #[tokio::test]
+async fn password_change_rotates_tokens_and_requires_new_password() {
+    let mut app = test_app(true).await;
+
+    let old_credentials =
+        json!({ "username": "dave@example.test", "password": "correct horse battery staple" });
+    let register = post_json(&mut app, "/v1/auth/register", old_credentials.clone()).await;
+    assert_eq!(register.status, StatusCode::OK);
+    let access_token = token(&register.body, "access_token");
+    let original_refresh_token = token(&register.body, "refresh_token");
+
+    let change = post_json_with_bearer(
+        &mut app,
+        "/v1/auth/password/change",
+        &access_token,
+        json!({
+            "current_password": "correct horse battery staple",
+            "new_password": "new correct horse battery staple"
+        }),
+    )
+    .await;
+    assert_eq!(change.status, StatusCode::OK);
+    let changed_access_token = token(&change.body, "access_token");
+
+    let old_login = post_json(&mut app, "/v1/auth/login", old_credentials).await;
+    assert_eq!(old_login.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(old_login.body["error_code"], "invalid_credentials");
+
+    let new_login = post_json(
+        &mut app,
+        "/v1/auth/login",
+        json!({
+            "username": "dave@example.test",
+            "password": "new correct horse battery staple"
+        }),
+    )
+    .await;
+    assert_eq!(new_login.status, StatusCode::OK);
+
+    let old_refresh = post_json(
+        &mut app,
+        "/v1/auth/refresh",
+        json!({ "refresh_token": original_refresh_token }),
+    )
+    .await;
+    assert_eq!(old_refresh.status, StatusCode::UNAUTHORIZED);
+    assert_eq!(old_refresh.body["error_code"], "token_invalid");
+
+    let me = get_with_bearer(&mut app, "/v1/users/me", &changed_access_token).await;
+    assert_eq!(me.status, StatusCode::OK);
+}
+
+#[tokio::test]
 async fn disabled_local_provider_returns_provider_disabled() {
     let mut app = test_app(false).await;
 
@@ -214,6 +266,23 @@ async fn post_with_bearer(app: &mut axum::Router, uri: &str, bearer_token: &str)
         .uri(uri)
         .header(header::AUTHORIZATION, format!("Bearer {bearer_token}"))
         .body(Body::empty())
+        .expect("request should build");
+
+    call(app, request).await
+}
+
+async fn post_json_with_bearer(
+    app: &mut axum::Router,
+    uri: &str,
+    bearer_token: &str,
+    body: Value,
+) -> TestResponse {
+    let request = Request::builder()
+        .method(Method::POST)
+        .uri(uri)
+        .header(header::AUTHORIZATION, format!("Bearer {bearer_token}"))
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body.to_string()))
         .expect("request should build");
 
     call(app, request).await

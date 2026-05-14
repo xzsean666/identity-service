@@ -5,6 +5,7 @@ use crate::{
         auth::AuthService,
         error::AppError,
         identity_binding::{IdentityBindingService, IdentityRepository},
+        password_change::{PasswordChangeRepository, PasswordChangeService},
         provider_registry::ProviderRegistry,
         readiness::{ReadinessDependency, ReadinessService},
         session::{SessionRepository, SessionService},
@@ -13,12 +14,14 @@ use crate::{
     config::{AppConfig, PersistenceBackend},
     infrastructure::{
         memory::{
-            InMemoryIdentityRepository, InMemoryLocalCredentialRepository, InMemoryReadinessCheck,
-            InMemorySessionRepository, InMemoryState,
+            InMemoryIdentityRepository, InMemoryLocalCredentialRepository,
+            InMemoryPasswordChangeRepository, InMemoryReadinessCheck, InMemorySessionRepository,
+            InMemoryState,
         },
         postgres::{
-            PostgresIdentityRepository, PostgresLocalCredentialRepository, PostgresReadinessCheck,
-            PostgresSessionRepository, PostgresState,
+            PostgresIdentityRepository, PostgresLocalCredentialRepository,
+            PostgresPasswordChangeRepository, PostgresReadinessCheck, PostgresSessionRepository,
+            PostgresState,
         },
     },
     providers::{
@@ -39,6 +42,7 @@ struct PersistenceServices {
     local_credential_repository: Arc<dyn LocalCredentialRepository>,
     identity_repository: Arc<dyn IdentityRepository>,
     session_repository: Arc<dyn SessionRepository>,
+    password_change_repository: Arc<dyn PasswordChangeRepository>,
     readiness_dependency: Arc<dyn ReadinessDependency>,
 }
 
@@ -59,7 +63,8 @@ pub async fn build_application_services(
                     state.clone(),
                 )),
                 identity_repository: Arc::new(InMemoryIdentityRepository::new(state.clone())),
-                session_repository: Arc::new(InMemorySessionRepository::new(state)),
+                session_repository: Arc::new(InMemorySessionRepository::new(state.clone())),
+                password_change_repository: Arc::new(InMemoryPasswordChangeRepository::new(state)),
                 readiness_dependency: Arc::new(InMemoryReadinessCheck),
             }
         }
@@ -81,6 +86,9 @@ pub async fn build_application_services(
                 )),
                 identity_repository: Arc::new(PostgresIdentityRepository::new(state.pool.clone())),
                 session_repository: Arc::new(PostgresSessionRepository::new(state.pool.clone())),
+                password_change_repository: Arc::new(PostgresPasswordChangeRepository::new(
+                    state.pool.clone(),
+                )),
                 readiness_dependency: Arc::new(PostgresReadinessCheck::new(state.pool.clone())),
             }
         }
@@ -101,8 +109,13 @@ pub async fn build_application_services(
     let token_service = TokenService::new(config.tokens.clone())?;
     let session_service = SessionService::new(
         persistence_services.session_repository,
-        config.sessions,
+        config.sessions.clone(),
         config.client,
+        RefreshTokenHasher::new(config.security.refresh_token_hmac_secret.clone()),
+    );
+    let password_change_service = PasswordChangeService::new(
+        persistence_services.password_change_repository,
+        config.sessions,
         RefreshTokenHasher::new(config.security.refresh_token_hmac_secret),
     );
 
@@ -110,6 +123,7 @@ pub async fn build_application_services(
         provider_registry,
         identity_binding,
         session_service,
+        password_change_service,
         token_service,
         local_password_provider,
         config.identity_providers.supabase,

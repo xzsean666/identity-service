@@ -6,6 +6,7 @@ mod identity;
 mod local_credential;
 mod mapping;
 mod migration;
+mod password_change;
 mod session;
 
 pub use health::PostgresReadinessCheck;
@@ -14,6 +15,7 @@ pub use local_credential::PostgresLocalCredentialRepository;
 pub use migration::{
     MigrationReport, available_migration_count, revert_migrations, run_pending_migrations,
 };
+pub use password_change::PostgresPasswordChangeRepository;
 pub use session::PostgresSessionRepository;
 
 pub(crate) use error::map_sqlx_error;

@@ -363,7 +363,7 @@ async fn insert_session(
     Ok(())
 }
 
-async fn insert_refresh_token(
+pub(crate) async fn insert_refresh_token(
     transaction: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     refresh_token: &RefreshTokenRecord,
 ) -> Result<(), AppError> {
