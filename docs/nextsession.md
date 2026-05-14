@@ -239,6 +239,7 @@ Completed content:
 - Local credential operation boundary for password change.
 - Registration and binding policy.
 - Token policy with RS256 access tokens.
+- Release build script increments the patch version, builds release binaries, and replaces `release/` with only the latest successful build.
 
 ## Pending Tasks
 
@@ -272,6 +273,7 @@ Completed Step 4 work:
 24. Supabase remote JWKS caching with refresh on missing `kid`.
 25. Transactional PostgreSQL local password change with refresh-token rotation.
 26. Full E2E HTTP flow tests for memory and optional PostgreSQL backends.
+27. Release build script that bumps the package patch version and writes only the latest successful build into `release/`.
 
 Open implementation decisions:
 
@@ -333,8 +335,9 @@ For the next AI session:
 5. Read `docs/MODULE_EXPANSION.md`.
 6. Read `docs/INTEGRATION.md`.
 7. Continue inside the MVP boundary in `docs/MVP.md`.
-8. Prefer deployment and key-management hardening as the next implementation focus.
-9. Commit each major step.
+8. Use `./scripts/build_release.sh` for local release artifacts; `release/` is generated and ignored by Git.
+9. Prefer deployment and key-management hardening as the next implementation focus.
+10. Commit each major step.
 
 ## Risks and Unknowns
 
@@ -404,6 +407,15 @@ Impact:
 
 Current known commits:
 
+- `test: add full e2e auth flows`
+- `feat: make password change transactional`
+- `feat: cache supabase jwks`
+- `feat: add backend readiness checks`
+- `feat: add postgres migration runner`
+- `feat: wire postgres persistence`
+- `feat: introduce repository boundaries`
+- `feat: add postgres persistence foundation`
+- `feat: implement rust mvp skeleton`
 - `feat: add architecture design docs`
 - `feat: add system documentation`
 - `feat: add context handoff documentation`
@@ -414,11 +426,11 @@ Current known commits:
 - `feat: document module expansion rules`
 - `feat: refine modular architecture audit findings`
 
-Latest Step 4 readiness work should be committed with:
+Latest release build work should be committed with:
 
 ```bash
 git add .
-git commit -m "feat: add backend readiness checks"
+git commit -m "chore: add release build script"
 ```
 
 ## Handoff Maintenance Criteria

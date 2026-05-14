@@ -36,6 +36,8 @@ identity-service/
     security/
     lib.rs
     main.rs
+  scripts/
+    build_release.sh
 ```
 
 ## Implemented MVP Increment
@@ -62,6 +64,7 @@ Current implementation limits:
 - Supabase fixture tokens are available only when explicitly enabled for local tests.
 - Migration execution is handled by the `migrate` binary, backed by the SQL files in `migrations/`.
 - JWT revocation is stateless for external consumers; logout and password change revoke refresh-token state, while already issued access tokens remain valid until `exp`.
+- Release builds are created by `scripts/build_release.sh`; the generated `release/` directory is local-only and ignored by Git.
 
 ## Prerequisites
 
@@ -203,6 +206,37 @@ Fixture request body:
 ```
 
 Fixture mode exists only to exercise provider normalization and identity binding without a Supabase project.
+
+## Release Build
+
+Build the latest release package:
+
+```bash
+./scripts/build_release.sh
+```
+
+The script performs these steps:
+
+- Reads the current package version from `Cargo.toml`.
+- Increments the patch version, for example `0.1.0` to `0.1.1`.
+- Builds all Rust binaries with `cargo build --release --bins`.
+- Writes the generated files into `release/`.
+- Replaces `release/` only after a successful build.
+
+`release/` keeps only the latest successful build. Older local release artifacts are removed when the new build succeeds. If the build fails, the previous `release/` directory is left untouched and the version files are restored.
+
+Generated release files:
+
+```text
+release/
+  identity-service
+  migrate
+  VERSION
+  BUILD_INFO
+  SHA256SUMS
+```
+
+`release/` is ignored by Git. Commit the script, docs, `Cargo.toml`, and `Cargo.lock` version changes, but do not commit compiled binaries unless a separate distribution process explicitly requires it.
 
 ## Development Commands
 
