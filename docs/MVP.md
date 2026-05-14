@@ -391,6 +391,7 @@ Current Step 4 implementation note:
 - The executable increment supports an in-memory storage adapter for local development and a PostgreSQL adapter for persisted deployments.
 - `IDENTITY_PERSISTENCE_BACKEND=memory` is the default.
 - `IDENTITY_PERSISTENCE_BACKEND=postgres` wires the identity, local credential, and session repositories to PostgreSQL.
+- `cargo run --bin migrate -- up` applies the MVP PostgreSQL migration.
 - PostgreSQL refresh-token exchange, reuse detection, logout revocation, and refresh-family rotation run inside repository transactions.
 - A strict single transaction covering both password-hash update and refresh-family rotation remains a hardening item if this deployment requires that guarantee.
 
@@ -441,6 +442,7 @@ After explicit approval for Step 4:
 16. Add PostgreSQL repository implementations.
 17. Wire runtime persistence selection.
 18. Add opt-in PostgreSQL repository integration test.
+19. Add PostgreSQL migration runner.
 
 ## Post-MVP Module Roadmap
 

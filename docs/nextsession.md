@@ -28,6 +28,7 @@ Repository state:
 - PostgreSQL schema files exist.
 - Runtime wiring now selects PostgreSQL repositories when `IDENTITY_PERSISTENCE_BACKEND=postgres`.
 - PostgreSQL repository implementations are split by responsibility under `src/infrastructure/postgres/`.
+- PostgreSQL migrations can be applied through `cargo run --bin migrate -- up`.
 
 Current completed workflow steps:
 
@@ -264,13 +265,13 @@ Completed Step 4 work:
 19. PostgreSQL identity, local credential, and session repository implementations.
 20. Runtime persistence selection in the application bootstrap.
 21. Opt-in PostgreSQL repository integration test.
+22. PostgreSQL migration runner binary.
 
 Open implementation decisions:
 
-1. Migration runner/tooling beyond plain SQL files.
-2. Production key storage strategy.
-3. Deployment target.
-4. Whether to add a cross-repository unit-of-work for strict password-change atomicity.
+1. Production key storage strategy.
+2. Deployment target.
+3. Whether to add a cross-repository unit-of-work for strict password-change atomicity.
 
 Fixed decisions:
 
@@ -287,10 +288,9 @@ Fixed decisions:
 
 Next implementation increment:
 
-1. Add a migration runner or documented deployment migration command.
+1. Add readiness checks that include PostgreSQL when the backend is `postgres`.
 2. Add a cross-repository unit-of-work if password hash update and refresh-family rotation must be committed in one database transaction.
 3. Add Supabase JWKS caching with conservative refresh behavior.
-4. Add readiness checks that include PostgreSQL when the backend is `postgres`.
 
 ### Post-MVP Provider Increment
 
@@ -329,7 +329,7 @@ For the next AI session:
 5. Read `docs/MODULE_EXPANSION.md`.
 6. Read `docs/INTEGRATION.md`.
 7. Continue inside the MVP boundary in `docs/MVP.md`.
-8. Prefer migration/readiness hardening as the next implementation focus.
+8. Prefer readiness hardening as the next implementation focus.
 9. Commit each major step.
 
 ## Risks and Unknowns
@@ -410,11 +410,11 @@ Current known commits:
 - `feat: document module expansion rules`
 - `feat: refine modular architecture audit findings`
 
-Latest Step 4 persistence work should be committed with:
+Latest Step 4 migration work should be committed with:
 
 ```bash
 git add .
-git commit -m "feat: wire postgres persistence"
+git commit -m "feat: add postgres migration runner"
 ```
 
 ## Handoff Maintenance Criteria

@@ -4,10 +4,14 @@ mod error;
 mod identity;
 mod local_credential;
 mod mapping;
+mod migration;
 mod session;
 
 pub use identity::PostgresIdentityRepository;
 pub use local_credential::PostgresLocalCredentialRepository;
+pub use migration::{
+    MigrationReport, available_migration_count, revert_migrations, run_pending_migrations,
+};
 pub use session::PostgresSessionRepository;
 
 pub(crate) use error::map_sqlx_error;

@@ -60,7 +60,7 @@ Current implementation limits:
 - `IDENTITY_PERSISTENCE_BACKEND=postgres` wires business repositories to PostgreSQL and requires a migrated database.
 - Supabase verification supports JWT access token validation through a configured Supabase JWKS.
 - Supabase fixture tokens are available only when explicitly enabled for local tests.
-- Migration execution is still manual through the SQL files in `migrations/`.
+- Migration execution is handled by the `migrate` binary, backed by the SQL files in `migrations/`.
 - JWT revocation is stateless for external consumers; logout and password change revoke refresh-token state, while already issued access tokens remain valid until `exp`.
 
 ## Prerequisites
@@ -215,7 +215,7 @@ PostgreSQL repository integration tests are opt-in. They run only when `IDENTITY
 
 ```bash
 export IDENTITY_DATABASE_URL="postgres://identity:identity@localhost:5432/identity"
-psql "$IDENTITY_DATABASE_URL" -f migrations/0001_mvp_identity_schema.up.sql
+cargo run --bin migrate -- up
 cargo test postgres_repositories
 ```
 
@@ -235,19 +235,24 @@ Current persistence configuration:
 - `IDENTITY_PERSISTENCE_BACKEND=postgres` uses PostgreSQL repositories and requires `IDENTITY_DATABASE_URL` during configuration loading.
 - `IDENTITY_DATABASE_URL` is optional for the default memory backend.
 
-The MVP schema lives in `migrations/` as plain PostgreSQL SQL:
+The MVP schema lives in `migrations/` as plain PostgreSQL SQL and is applied through the migration binary:
 
 ```bash
-psql "$DATABASE_URL" -f migrations/0001_mvp_identity_schema.up.sql
+export IDENTITY_DATABASE_URL="postgres://identity:identity@localhost:5432/identity"
+cargo run --bin migrate -- up
 ```
 
 Rollback for local development:
 
 ```bash
-psql "$DATABASE_URL" -f migrations/0001_mvp_identity_schema.down.sql
+cargo run --bin migrate -- down 0
 ```
 
 The migration creates only the current MVP persistence tables: `internal_users`, `external_identities`, `local_credentials`, `sessions`, and `refresh_token_records`.
+The migration runner also creates SQLx migration tracking metadata.
+
+Apply migrations to a fresh database or a database already managed by this runner.
+If the schema was previously applied manually with `psql`, the runner cannot safely infer that state.
 
 Implemented PostgreSQL behavior:
 
@@ -255,11 +260,12 @@ Implemented PostgreSQL behavior:
 - Runtime wiring selects PostgreSQL repositories when `IDENTITY_PERSISTENCE_BACKEND=postgres`.
 - Session creation, refresh token exchange, reuse detection, logout revocation, and refresh-family rotation use PostgreSQL transactions.
 - Refresh token exchange locks the current refresh-token row with `FOR UPDATE`.
+- The `migrate` binary applies and reverts SQLx-tracked migrations.
 
 Known persistence hardening left after this increment:
 
-- Add a migration runner instead of applying SQL manually.
 - Add a cross-repository unit-of-work boundary if strict single-transaction password-hash update plus refresh-family rotation is required.
+- Add readiness checks that include PostgreSQL when the backend is `postgres`.
 
 Do not add Redis to the MVP unless a specific runtime need appears.
 

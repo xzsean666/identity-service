@@ -127,7 +127,7 @@ async fn assert_mvp_schema_exists(pool: &PgPool) {
 
     assert!(
         table_name.is_some(),
-        "IDENTITY_DATABASE_URL tests require the MVP migration first: psql \"$IDENTITY_DATABASE_URL\" -f migrations/0001_mvp_identity_schema.up.sql"
+        "IDENTITY_DATABASE_URL tests require the MVP migration first: cargo run --bin migrate -- up"
     );
 }
 
