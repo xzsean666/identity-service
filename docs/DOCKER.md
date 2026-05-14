@@ -52,6 +52,19 @@ IDENTITY_PROVIDER_SUPABASE_AUDIENCE=authenticated
 IDENTITY_PROVIDER_SUPABASE_JWKS_URL=https://your-project.supabase.co/auth/v1/.well-known/jwks.json
 ```
 
+Supabase keys are not configured in this IAM service for the MVP.
+
+- Supabase `anon` key belongs in the frontend project, for example `VITE_SUPABASE_ANON_KEY`.
+- Supabase `service_role` key must not be exposed to the frontend and is not used by this IAM MVP.
+- This service receives a Supabase `access_token` from the client and verifies it through Supabase JWKS.
+
+Frontend-side example:
+
+```bash
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+
 Enable browser frontend direct mode only when a frontend needs to call this service directly:
 
 ```bash

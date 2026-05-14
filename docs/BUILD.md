@@ -191,6 +191,12 @@ Disabled providers keep their public routes registered and return `provider_disa
 
 Current Supabase adapter input is a Supabase JWT access token passed as `access_token`.
 
+Supabase keys are intentionally not part of this service's MVP backend configuration:
+
+- The Supabase `anon` key is used by the frontend or client app to log in with Supabase.
+- The Supabase `service_role` key is not used by this IAM MVP and must not be exposed to browser clients.
+- This IAM service verifies the resulting Supabase access token through the configured Supabase JWKS URL.
+
 The adapter:
 
 - Reads `kid` from the token header.
