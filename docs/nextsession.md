@@ -233,6 +233,7 @@ Completed content:
 - Refresh token ownership split between session and token modules.
 - MVP Supabase product input narrowed to Supabase JWT access token.
 - Current Step 4 Supabase adapter verifies JWT access tokens through configured JWKS.
+- Remote Supabase JWKS is cached briefly and refreshed once when a token `kid` is missing from cache.
 - Local JSON fixture payloads are development/test-only.
 - MVP static client context.
 - Local credential operation boundary for password change.
@@ -268,6 +269,7 @@ Completed Step 4 work:
 21. Opt-in PostgreSQL repository integration test.
 22. PostgreSQL migration runner binary.
 23. Backend-aware readiness endpoint.
+24. Supabase remote JWKS caching with refresh on missing `kid`.
 
 Open implementation decisions:
 
@@ -291,8 +293,7 @@ Fixed decisions:
 Next implementation increment:
 
 1. Add a cross-repository unit-of-work if password hash update and refresh-family rotation must be committed in one database transaction.
-2. Add Supabase JWKS caching with conservative refresh behavior.
-3. Add a deployment example after target runtime is selected.
+2. Add a deployment example after target runtime is selected.
 
 ### Post-MVP Provider Increment
 
@@ -331,7 +332,7 @@ For the next AI session:
 5. Read `docs/MODULE_EXPANSION.md`.
 6. Read `docs/INTEGRATION.md`.
 7. Continue inside the MVP boundary in `docs/MVP.md`.
-8. Prefer transaction hardening or Supabase JWKS caching as the next implementation focus.
+8. Prefer transaction hardening as the next implementation focus.
 9. Commit each major step.
 
 ## Risks and Unknowns

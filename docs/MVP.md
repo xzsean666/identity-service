@@ -66,7 +66,7 @@ The MVP must support:
 
 MVP product input is a Supabase JWT access token supplied by the client.
 
-The current executable implementation verifies Supabase JWT access tokens through configured JWKS. A local JSON fixture payload can be enabled only for development and tests.
+The current executable implementation verifies Supabase JWT access tokens through configured JWKS, caches remote JWKS briefly, and refreshes remote JWKS once when a token `kid` is not found in cache. A local JSON fixture payload can be enabled only for development and tests.
 
 The MVP does not implement Supabase callback routes.
 

@@ -178,6 +178,8 @@ The adapter:
 
 - Reads `kid` from the token header.
 - Loads the matching key from configured Supabase JWKS.
+- Caches remote JWKS for a short interval.
+- Forces one remote JWKS refresh when the cached set does not contain the token `kid`.
 - Checks JWK `alg` against the token header algorithm.
 - Validates issuer, audience, expiration, and subject.
 - Rejects shared-secret JWKs from remote JWKS; use asymmetric Supabase signing keys for normal integration.

@@ -225,6 +225,7 @@ The Supabase provider adapter must:
 - Ignore which upstream Supabase method was used for this service's provider selection.
 - Accept a Supabase JWT access token in the MVP product contract.
 - Current Step 4 code verifies Supabase JWT access tokens through configured JWKS.
+- Remote Supabase JWKS is cached briefly and refreshed on missing `kid`.
 - Local fixture tokens require explicit development/test configuration.
 - Store no Supabase provider token.
 - Return only allowlisted Supabase metadata.
