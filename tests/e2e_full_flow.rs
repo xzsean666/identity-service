@@ -11,12 +11,13 @@ use identity_service::{
         PersistenceBackend, PersistenceConfig, ProviderToggle, SecurityConfig, SessionConfig,
         SupabaseProviderConfig, TokenConfig,
     },
-    infrastructure::postgres::run_pending_migrations,
+    infrastructure::{postgres, sqlite},
     interfaces::http::router,
 };
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use serde::Serialize;
 use serde_json::{Value, json};
+use std::fs;
 use tower::util::ServiceExt;
 use uuid::Uuid;
 
@@ -36,11 +37,24 @@ async fn e2e_full_identity_platform_flow_with_memory_backend() {
 }
 
 #[tokio::test]
+async fn e2e_full_identity_platform_flow_with_sqlite_backend() {
+    let database_url = sqlite_database_url("e2e");
+    sqlite::run_pending_migrations(&database_url)
+        .await
+        .expect("SQLite E2E tests should run migrations");
+
+    let config = test_config(TestBackend::Sqlite(database_url), true, true);
+    let mut app = test_app(config).await;
+
+    run_full_identity_platform_flow(&mut app, "sqlite", "sqlite").await;
+}
+
+#[tokio::test]
 async fn e2e_full_identity_platform_flow_with_postgres_backend_when_configured() {
     let Some(database_url) = std::env::var("IDENTITY_DATABASE_URL").ok() else {
         return;
     };
-    run_pending_migrations(&database_url)
+    postgres::run_pending_migrations(&database_url)
         .await
         .expect("PostgreSQL E2E tests require a database that can run migrations");
 
@@ -372,6 +386,7 @@ async fn test_app(config: AppConfig) -> axum::Router {
 
 enum TestBackend {
     Memory,
+    Sqlite(String),
     Postgres(String),
 }
 
@@ -382,6 +397,7 @@ fn test_config(
 ) -> AppConfig {
     let (persistence_backend, database_url) = match backend {
         TestBackend::Memory => (PersistenceBackend::Memory, None),
+        TestBackend::Sqlite(database_url) => (PersistenceBackend::Sqlite, Some(database_url)),
         TestBackend::Postgres(database_url) => (PersistenceBackend::Postgres, Some(database_url)),
     };
 
@@ -433,6 +449,13 @@ fn test_config(
             refresh_token_hmac_secret: "identity-service-e2e-refresh-secret".to_owned(),
         },
     }
+}
+
+fn sqlite_database_url(label: &str) -> String {
+    let path = std::env::temp_dir().join(format!("identity-service-{label}-{}.db", Uuid::new_v4()));
+    let _ = fs::remove_file(&path);
+
+    format!("sqlite://{}", path.display())
 }
 
 fn supabase_jwks_json() -> String {

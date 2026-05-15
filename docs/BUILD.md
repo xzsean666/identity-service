@@ -4,10 +4,10 @@
 
 Step 4 - MVP implementation has started.
 
-The repository now contains a Rust/Axum service skeleton with both in-memory and PostgreSQL persistence adapters.
+The repository now contains a Rust/Axum service skeleton with in-memory, SQLite, and PostgreSQL persistence adapters.
 
 PostgreSQL is the selected production persistence target.
-The PostgreSQL schema exists in `migrations/`, and startup wiring selects either `memory` or `postgres` through centralized configuration.
+PostgreSQL migrations live in `migrations/`, SQLite migrations live in `migrations/sqlite/`, and startup wiring selects `memory`, `sqlite`, or `postgres` through centralized configuration.
 
 ## Repository Layout
 
@@ -37,6 +37,7 @@ identity-service/
     config/
     domain/
     infrastructure/
+      sqlite/
       postgres/
     interfaces/
     providers/
@@ -68,6 +69,7 @@ Current executable scope:
 Current implementation limits:
 
 - `IDENTITY_PERSISTENCE_BACKEND` defaults to `memory`, which resets on process restart.
+- `IDENTITY_PERSISTENCE_BACKEND=sqlite` wires business repositories to SQLite and requires a migrated database.
 - `IDENTITY_PERSISTENCE_BACKEND=postgres` wires business repositories to PostgreSQL and requires a migrated database.
 - Supabase verification supports JWT access token validation through a configured Supabase JWKS.
 - Supabase fixture tokens are available only when explicitly enabled for local tests.
@@ -119,7 +121,8 @@ export IDENTITY_FRONTEND_DIRECT_ENABLED="false"
 # Required only when IDENTITY_FRONTEND_DIRECT_ENABLED="true".
 # export IDENTITY_FRONTEND_ALLOWED_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"
 export IDENTITY_PERSISTENCE_BACKEND="memory"
-# Required only when IDENTITY_PERSISTENCE_BACKEND="postgres".
+# Required only when IDENTITY_PERSISTENCE_BACKEND="sqlite" or "postgres".
+# export IDENTITY_DATABASE_URL="sqlite://./identity.db"
 # export IDENTITY_DATABASE_URL="postgres://identity:identity@localhost:5432/identity"
 export IDENTITY_TOKEN_PRIVATE_KEY_PEM_PATH="./secrets/jwt_private.pem"
 export IDENTITY_TOKEN_PUBLIC_KEY_PEM_PATH="./secrets/jwt_public.pem"
@@ -170,7 +173,7 @@ curl http://127.0.0.1:3000/ready
 
 `/health` reports that the HTTP process is running.
 `/ready` reports whether required runtime dependencies are available.
-When `IDENTITY_PERSISTENCE_BACKEND=postgres`, `/ready` checks PostgreSQL with `SELECT 1`.
+When `IDENTITY_PERSISTENCE_BACKEND=sqlite` or `postgres`, `/ready` checks the configured database with `SELECT 1`.
 
 ## MVP API
 
@@ -357,26 +360,42 @@ export IDENTITY_DATABASE_URL="postgres://identity:identity@localhost:5432/identi
 cargo test --test e2e_full_flow
 ```
 
+SQLite repository and E2E tests run by default with temporary local database files:
+
+```bash
+cargo test sqlite_repositories
+cargo test --test e2e_full_flow
+```
+
 Whitespace check before commit:
 
 ```bash
 git diff --check
 ```
 
-## PostgreSQL Target
+## Persistence Targets
 
 PostgreSQL is still the required production persistence target because identity bindings, sessions, refresh tokens, and credential updates need transactional consistency.
 
 Current persistence configuration:
 
 - `IDENTITY_PERSISTENCE_BACKEND=memory` uses the current in-memory MVP adapter and is the default.
+- `IDENTITY_PERSISTENCE_BACKEND=sqlite` uses SQLite repositories and requires `IDENTITY_DATABASE_URL` during configuration loading.
 - `IDENTITY_PERSISTENCE_BACKEND=postgres` uses PostgreSQL repositories and requires `IDENTITY_DATABASE_URL` during configuration loading.
 - `IDENTITY_DATABASE_URL` is optional for the default memory backend.
 
-The MVP schema lives in `migrations/` as plain PostgreSQL SQL and is applied through the migration binary:
+The PostgreSQL MVP schema lives in `migrations/` as plain PostgreSQL SQL and is applied through the migration binary:
 
 ```bash
 export IDENTITY_DATABASE_URL="postgres://identity:identity@localhost:5432/identity"
+cargo run --bin migrate -- up
+```
+
+The SQLite MVP schema lives in `migrations/sqlite/` and uses the same migration binary:
+
+```bash
+export IDENTITY_PERSISTENCE_BACKEND="sqlite"
+export IDENTITY_DATABASE_URL="sqlite://./identity.db"
 cargo run --bin migrate -- up
 ```
 
@@ -400,6 +419,13 @@ Implemented PostgreSQL behavior:
 - Refresh token exchange locks the current refresh-token row with `FOR UPDATE`.
 - Local password change updates the credential hash, revokes old refresh-token state, and inserts the new refresh-token family in one PostgreSQL transaction.
 - The `migrate` binary applies and reverts SQLx-tracked migrations.
+
+Implemented SQLite behavior:
+
+- Identity binding, local credential, and session repositories are implemented under `src/infrastructure/sqlite/`.
+- Runtime wiring selects SQLite repositories when `IDENTITY_PERSISTENCE_BACKEND=sqlite`.
+- Session creation, refresh token exchange, reuse detection, logout revocation, refresh-family rotation, and password change use SQLite transactions.
+- The `migrate` binary applies and reverts SQLx-tracked SQLite migrations.
 
 Known persistence hardening left after this increment:
 

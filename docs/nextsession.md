@@ -22,14 +22,16 @@ Repository state:
 - Module expansion rules have been documented.
 - Architecture audit findings have been incorporated into module ownership rules.
 - Backend and gateway integration contract has been documented.
-- Current executable implementation supports in-memory development storage and PostgreSQL persistence.
-- Persistence config now supports `IDENTITY_PERSISTENCE_BACKEND=memory|postgres`, defaulting to `memory`.
-- `IDENTITY_DATABASE_URL` is required only when the backend is `postgres`.
-- PostgreSQL schema files exist.
+- Current executable implementation supports in-memory development storage, SQLite persistence, and PostgreSQL persistence.
+- Persistence config now supports `IDENTITY_PERSISTENCE_BACKEND=memory|sqlite|postgres`, defaulting to `memory`.
+- `IDENTITY_DATABASE_URL` is required only when the backend is `sqlite` or `postgres`.
+- PostgreSQL and SQLite schema files exist.
 - Runtime wiring now selects PostgreSQL repositories when `IDENTITY_PERSISTENCE_BACKEND=postgres`.
+- Runtime wiring now selects SQLite repositories when `IDENTITY_PERSISTENCE_BACKEND=sqlite`.
 - PostgreSQL repository implementations are split by responsibility under `src/infrastructure/postgres/`.
-- PostgreSQL migrations can be applied through `cargo run --bin migrate -- up`.
-- `/ready` checks memory readiness for the default backend and PostgreSQL readiness for the `postgres` backend.
+- SQLite repository implementations are split by responsibility under `src/infrastructure/sqlite/`.
+- PostgreSQL and SQLite migrations can be applied through `cargo run --bin migrate -- up`.
+- `/ready` checks memory readiness for the default backend and database readiness for the `sqlite` and `postgres` backends.
 
 Current completed workflow steps:
 

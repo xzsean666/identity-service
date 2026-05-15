@@ -1,4 +1,4 @@
-use identity_service::infrastructure::postgres::{revert_migrations, run_pending_migrations};
+use identity_service::infrastructure::{postgres, sqlite};
 
 #[tokio::main]
 async fn main() {
@@ -15,18 +15,35 @@ async fn main() {
         }
     };
 
-    let result = match command {
-        MigrationCommand::Up => run_pending_migrations(&database_url).await,
-        MigrationCommand::Down { target_version } => {
-            revert_migrations(&database_url, target_version).await
+    let backend = migration_backend_from_env(&database_url);
+    let result = match (backend, command) {
+        (MigrationBackend::Postgres, MigrationCommand::Up) => {
+            postgres::run_pending_migrations(&database_url)
+                .await
+                .map(|report| report.available_up_migrations)
+        }
+        (MigrationBackend::Postgres, MigrationCommand::Down { target_version }) => {
+            postgres::revert_migrations(&database_url, target_version)
+                .await
+                .map(|report| report.available_up_migrations)
+        }
+        (MigrationBackend::Sqlite, MigrationCommand::Up) => {
+            sqlite::run_pending_migrations(&database_url)
+                .await
+                .map(|report| report.available_up_migrations)
+        }
+        (MigrationBackend::Sqlite, MigrationCommand::Down { target_version }) => {
+            sqlite::revert_migrations(&database_url, target_version)
+                .await
+                .map(|report| report.available_up_migrations)
         }
     };
 
     match result {
-        Ok(report) => {
+        Ok(available_up_migrations) => {
             println!(
                 "database migrations completed; available up migrations: {}",
-                report.available_up_migrations
+                available_up_migrations
             );
         }
         Err(error) => {
@@ -39,6 +56,31 @@ async fn main() {
 enum MigrationCommand {
     Up,
     Down { target_version: i64 },
+}
+
+enum MigrationBackend {
+    Postgres,
+    Sqlite,
+}
+
+fn migration_backend_from_env(database_url: &str) -> MigrationBackend {
+    match std::env::var("IDENTITY_PERSISTENCE_BACKEND") {
+        Ok(value) if value == "postgres" => MigrationBackend::Postgres,
+        Ok(value) if value == "sqlite" => MigrationBackend::Sqlite,
+        Ok(value) if value == "memory" => {
+            exit_with_config_error("memory backend does not use database migrations")
+        }
+        Ok(value) => exit_with_config_error(&format!(
+            "IDENTITY_PERSISTENCE_BACKEND must be one of: sqlite, postgres; got {value}"
+        )),
+        Err(_) if database_url.starts_with("sqlite:") => MigrationBackend::Sqlite,
+        Err(_) => MigrationBackend::Postgres,
+    }
+}
+
+fn exit_with_config_error(message: &str) -> ! {
+    eprintln!("configuration error: {message}");
+    std::process::exit(1);
 }
 
 impl MigrationCommand {

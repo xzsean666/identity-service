@@ -35,6 +35,7 @@ pub struct PersistenceConfig {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum PersistenceBackend {
     Memory,
+    Sqlite,
     Postgres,
 }
 
@@ -289,17 +290,22 @@ fn parse_persistence_config() -> Result<PersistenceConfig, ConfigError> {
     let backend_name = optional_env("IDENTITY_PERSISTENCE_BACKEND", "memory");
     let backend = match backend_name.as_str() {
         "memory" => PersistenceBackend::Memory,
+        "sqlite" => PersistenceBackend::Sqlite,
         "postgres" => PersistenceBackend::Postgres,
         _ => {
             return Err(ConfigError::InvalidValue {
                 name: "IDENTITY_PERSISTENCE_BACKEND",
-                message: "must be one of: memory, postgres".to_owned(),
+                message: "must be one of: memory, sqlite, postgres".to_owned(),
             });
         }
     };
     let database_url = env::var("IDENTITY_DATABASE_URL").ok();
 
-    if backend == PersistenceBackend::Postgres && database_url.is_none() {
+    if matches!(
+        backend,
+        PersistenceBackend::Sqlite | PersistenceBackend::Postgres
+    ) && database_url.is_none()
+    {
         return Err(ConfigError::MissingRequired("IDENTITY_DATABASE_URL"));
     }
 
@@ -430,10 +436,45 @@ mod tests {
     }
 
     #[test]
-    fn invalid_persistence_backend_is_rejected() {
+    fn sqlite_persistence_requires_database_url() {
         with_env_lock(|| {
             unsafe {
                 env::set_var("IDENTITY_PERSISTENCE_BACKEND", "sqlite");
+                env::remove_var("IDENTITY_DATABASE_URL");
+            }
+
+            let result = parse_persistence_config();
+
+            assert!(matches!(
+                result,
+                Err(ConfigError::MissingRequired("IDENTITY_DATABASE_URL"))
+            ));
+        });
+    }
+
+    #[test]
+    fn sqlite_persistence_accepts_database_url() {
+        with_env_lock(|| {
+            unsafe {
+                env::set_var("IDENTITY_PERSISTENCE_BACKEND", "sqlite");
+                env::set_var("IDENTITY_DATABASE_URL", "sqlite:///tmp/identity-test.db");
+            }
+
+            let config = parse_persistence_config().unwrap();
+
+            assert_eq!(config.backend, PersistenceBackend::Sqlite);
+            assert_eq!(
+                config.database_url,
+                Some("sqlite:///tmp/identity-test.db".to_owned())
+            );
+        });
+    }
+
+    #[test]
+    fn invalid_persistence_backend_is_rejected() {
+        with_env_lock(|| {
+            unsafe {
+                env::set_var("IDENTITY_PERSISTENCE_BACKEND", "mysql");
                 env::remove_var("IDENTITY_DATABASE_URL");
             }
 

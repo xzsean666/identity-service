@@ -170,6 +170,13 @@ IDENTITY_PERSISTENCE_BACKEND=postgres
 IDENTITY_DATABASE_URL=postgres://identity:identity@postgres:5432/identity
 ```
 
+Example `.env` values for SQLite:
+
+```bash
+IDENTITY_PERSISTENCE_BACKEND=sqlite
+IDENTITY_DATABASE_URL=sqlite:///app/data/identity.db
+```
+
 Then start the container:
 
 ```bash

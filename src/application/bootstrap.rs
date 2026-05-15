@@ -23,6 +23,11 @@ use crate::{
             PostgresPasswordChangeRepository, PostgresReadinessCheck, PostgresSessionRepository,
             PostgresState,
         },
+        sqlite::{
+            SqliteIdentityRepository, SqliteLocalCredentialRepository,
+            SqlitePasswordChangeRepository, SqliteReadinessCheck, SqliteSessionRepository,
+            SqliteState,
+        },
     },
     providers::{
         IdentityProviderAdapter,
@@ -68,6 +73,30 @@ pub async fn build_application_services(
                 session_repository: Arc::new(InMemorySessionRepository::new(state.clone())),
                 password_change_repository: Arc::new(InMemoryPasswordChangeRepository::new(state)),
                 readiness_dependency: Arc::new(InMemoryReadinessCheck),
+            }
+        }
+        PersistenceBackend::Sqlite => {
+            let database_url =
+                config.persistence.database_url.as_deref().ok_or_else(|| {
+                    AppError::Internal("sqlite database url is missing".to_owned())
+                })?;
+            let state = SqliteState::connect(database_url)
+                .await
+                .map_err(|error| AppError::Internal(error.to_string()))?;
+            state
+                .health_check()
+                .await
+                .map_err(|error| AppError::Internal(error.to_string()))?;
+            PersistenceServices {
+                local_credential_repository: Arc::new(SqliteLocalCredentialRepository::new(
+                    state.pool.clone(),
+                )),
+                identity_repository: Arc::new(SqliteIdentityRepository::new(state.pool.clone())),
+                session_repository: Arc::new(SqliteSessionRepository::new(state.pool.clone())),
+                password_change_repository: Arc::new(SqlitePasswordChangeRepository::new(
+                    state.pool.clone(),
+                )),
+                readiness_dependency: Arc::new(SqliteReadinessCheck::new(state.pool.clone())),
             }
         }
         PersistenceBackend::Postgres => {

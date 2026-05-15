@@ -393,11 +393,12 @@ Password change policy:
 
 Current Step 4 implementation note:
 
-- The executable increment supports an in-memory storage adapter for local development and a PostgreSQL adapter for persisted deployments.
+- The executable increment supports in-memory, SQLite, and PostgreSQL storage adapters.
 - `IDENTITY_PERSISTENCE_BACKEND=memory` is the default.
+- `IDENTITY_PERSISTENCE_BACKEND=sqlite` wires the identity, local credential, and session repositories to SQLite.
 - `IDENTITY_PERSISTENCE_BACKEND=postgres` wires the identity, local credential, and session repositories to PostgreSQL.
-- `cargo run --bin migrate -- up` applies the MVP PostgreSQL migration.
-- `/ready` checks memory readiness for the default backend and PostgreSQL readiness for the `postgres` backend.
+- `cargo run --bin migrate -- up` applies the MVP SQLite or PostgreSQL migration selected by `IDENTITY_PERSISTENCE_BACKEND`.
+- `/ready` checks memory readiness for the default backend and database readiness for the `sqlite` and `postgres` backends.
 - PostgreSQL refresh-token exchange, reuse detection, logout revocation, and refresh-family rotation run inside repository transactions.
 - PostgreSQL local password change updates the password hash, revokes old refresh-token state, and creates the new refresh-token family in one transaction.
 
