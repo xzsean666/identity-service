@@ -58,15 +58,18 @@ The service derives these values automatically:
 
 Supabase keys are not configured in this IAM service for the MVP.
 
-- Supabase `anon` key belongs in the frontend project, for example `VITE_SUPABASE_ANON_KEY`.
+- Supabase publishable key belongs in the frontend project, for example
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` or `VITE_SUPABASE_PUBLISHABLE_KEY`.
+- Older tutorials may call this the Supabase `anon` key. For hosted Supabase projects,
+  `sb_publishable_...` is the current frontend-safe replacement.
 - Supabase `service_role` key must not be exposed to the frontend and is not used by this IAM MVP.
 - This service receives a Supabase `access_token` from the client and verifies it through Supabase JWKS.
 
 Frontend-side example:
 
 ```bash
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
 Enable browser frontend direct mode only when a frontend needs to call this service directly:

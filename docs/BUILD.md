@@ -198,7 +198,8 @@ Current Supabase adapter input is a Supabase JWT access token passed as `access_
 
 Supabase keys are intentionally not part of this service's MVP backend configuration:
 
-- The Supabase `anon` key is used by the frontend or client app to log in with Supabase.
+- The Supabase publishable key, `sb_publishable_...`, is used by the frontend or client app to log in with Supabase.
+- Older Supabase examples may call the frontend key `anon`; the current hosted-platform default is the publishable key.
 - The Supabase `service_role` key is not used by this IAM MVP and must not be exposed to browser clients.
 - This IAM service verifies the resulting Supabase access token through the configured Supabase JWKS URL.
 

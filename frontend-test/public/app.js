@@ -2,6 +2,11 @@ const DEFAULT_API_BASE_URL = "http://127.0.0.1:3000";
 const DEFAULT_USERNAME = "alice@example.test";
 const MAX_LOG_ENTRIES = 8;
 
+const SUPABASE_CONFIG = {
+  url: "https://ahjhppptrqnrhcpdpcew.supabase.co",
+  publishableKey: "sb_publishable_-_Q6cwndvXJUCKu4LvsHgA_lzrEJBFO",
+};
+
 const STORAGE_KEYS = {
   apiBaseUrl: "identity-test.api-base-url",
   username: "identity-test.username",
@@ -46,12 +51,19 @@ function cacheElements() {
     settingsForm: document.getElementById("settingsForm"),
     useLocalDefaultButton: document.getElementById("useLocalDefaultButton"),
     resetSessionButton: document.getElementById("resetSessionButton"),
+    supabaseUrlValue: document.getElementById("supabaseUrlValue"),
+    supabaseKeyValue: document.getElementById("supabaseKeyValue"),
+    copySupabaseUrlButton: document.getElementById("copySupabaseUrlButton"),
+    copySupabaseKeyButton: document.getElementById("copySupabaseKeyButton"),
     registerForm: document.getElementById("registerForm"),
     registerUsernameInput: document.getElementById("registerUsernameInput"),
     registerPasswordInput: document.getElementById("registerPasswordInput"),
     loginForm: document.getElementById("loginForm"),
     loginUsernameInput: document.getElementById("loginUsernameInput"),
     loginPasswordInput: document.getElementById("loginPasswordInput"),
+    supabaseLoginForm: document.getElementById("supabaseLoginForm"),
+    supabaseEmailInput: document.getElementById("supabaseEmailInput"),
+    supabasePasswordInput: document.getElementById("supabasePasswordInput"),
     passwordForm: document.getElementById("passwordForm"),
     currentPasswordInput: document.getElementById("currentPasswordInput"),
     newPasswordInput: document.getElementById("newPasswordInput"),
@@ -91,6 +103,7 @@ function hydrateState() {
   elements.apiBaseUrlInput.value = state.apiBaseUrl;
   elements.registerUsernameInput.value = state.username;
   elements.loginUsernameInput.value = state.username;
+  elements.supabaseEmailInput.value = state.username;
   elements.accessTokenOutput.value = state.accessToken;
   elements.refreshTokenOutput.value = state.refreshToken;
 }
@@ -135,6 +148,14 @@ function bindEvents() {
     showStatus("当前 session 的 token、user 和日志已清空。", "warning");
   });
 
+  elements.copySupabaseUrlButton.addEventListener("click", () => {
+    copyText(SUPABASE_CONFIG.url, "Supabase URL 已复制。", "success");
+  });
+
+  elements.copySupabaseKeyButton.addEventListener("click", () => {
+    copyText(SUPABASE_CONFIG.publishableKey, "Supabase publishable key 已复制。", "success");
+  });
+
   elements.registerForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const username = elements.registerUsernameInput.value.trim();
@@ -161,6 +182,15 @@ function bindEvents() {
       path: "/v1/auth/login",
       body: { username, password },
     });
+  });
+
+  elements.supabaseLoginForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const email = elements.supabaseEmailInput.value.trim();
+    const password = elements.supabasePasswordInput.value;
+    syncUsername(email);
+    clearField(elements.supabasePasswordInput);
+    await loginWithSupabaseAndExchange(email, password);
   });
 
   elements.passwordForm.addEventListener("submit", async (event) => {
@@ -237,6 +267,8 @@ function renderConnection() {
   elements.allowedOriginCode.textContent = pageOrigin;
   elements.apiOriginPreview.textContent = apiOrigin;
   elements.backendAllowedOrigin.textContent = pageOrigin;
+  elements.supabaseUrlValue.textContent = SUPABASE_CONFIG.url;
+  elements.supabaseKeyValue.textContent = maskMiddle(SUPABASE_CONFIG.publishableKey, 18, 8);
 
   if (mixedContentRisk) {
     elements.connectionWarning.textContent =
@@ -417,6 +449,64 @@ async function submitJson({ action, method, path, body, auth = false }) {
   }
 }
 
+async function loginWithSupabaseAndExchange(email, password) {
+  const action = "supabase login";
+  const method = "POST";
+  const url = `${SUPABASE_CONFIG.url}/auth/v1/token?grant_type=password`;
+
+  try {
+    const response = await fetch(url, {
+      method,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        apikey: SUPABASE_CONFIG.publishableKey,
+        Authorization: `Bearer ${SUPABASE_CONFIG.publishableKey}`,
+      },
+      body: JSON.stringify({ email, password }),
+    });
+    const responseBody = await readResponseBody(response);
+    const entry = {
+      at: new Date().toISOString(),
+      action,
+      method,
+      url,
+      status: response.status,
+      ok: response.ok,
+      body: responseBody,
+    };
+    pushResponse(entry);
+
+    if (!response.ok || !isRecord(responseBody) || typeof responseBody.access_token !== "string") {
+      showStatus(`Supabase 登录失败 (${response.status})`, "error");
+      renderAll();
+      return entry;
+    }
+
+    await submitJson({
+      action: "supabase exchange",
+      method: "POST",
+      path: "/v1/auth/supabase/exchange",
+      body: { access_token: responseBody.access_token },
+    });
+    return entry;
+  } catch (error) {
+    const entry = {
+      at: new Date().toISOString(),
+      action,
+      method,
+      url,
+      status: "network_error",
+      ok: false,
+      body: { error: error.message },
+    };
+    pushResponse(entry);
+    showStatus(`Supabase 登录网络错误：${error.message}`, "error");
+    renderAll();
+    return entry;
+  }
+}
+
 function applySuccessfulResponse(action, body) {
   if (!isRecord(body)) {
     return;
@@ -453,6 +543,7 @@ function syncUsername(username) {
   saveStorage(STORAGE_KEYS.username, state.username);
   elements.registerUsernameInput.value = state.username;
   elements.loginUsernameInput.value = state.username;
+  elements.supabaseEmailInput.value = state.username;
 }
 
 function requireAccessToken() {
@@ -617,6 +708,14 @@ function truncate(value, maxLength) {
   }
 
   return `${value.slice(0, maxLength)}\n…`;
+}
+
+function maskMiddle(value, headLength, tailLength) {
+  if (value.length <= headLength + tailLength) {
+    return value;
+  }
+
+  return `${value.slice(0, headLength)}...${value.slice(-tailLength)}`;
 }
 
 function formatTimestamp(input) {

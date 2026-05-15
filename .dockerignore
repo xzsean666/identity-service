@@ -5,3 +5,4 @@
 /secrets
 /release/*
 !/release/identity-service
+!/release/migrate

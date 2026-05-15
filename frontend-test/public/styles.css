@@ -465,6 +465,12 @@ textarea:focus {
   background: var(--panel-soft);
 }
 
+.card--spaced {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
 .card h3,
 .token-card h3,
 .summary-box h3 {

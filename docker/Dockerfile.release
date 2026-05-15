@@ -19,8 +19,9 @@ RUN set -eux; \
 WORKDIR /app
 
 COPY release/identity-service /usr/local/bin/identity-service
+COPY release/migrate /usr/local/bin/migrate
 
-RUN chmod +x /usr/local/bin/identity-service
+RUN chmod +x /usr/local/bin/identity-service /usr/local/bin/migrate
 
 ENV IDENTITY_HTTP_HOST=0.0.0.0
 ENV IDENTITY_HTTP_PORT=3000

@@ -105,6 +105,62 @@
           <section class="panel">
             <div class="panel-header">
               <div>
+                <p class="section-kicker">Supabase</p>
+                <h2>Supabase 登录</h2>
+              </div>
+              <p class="panel-subtitle">登录后自动 exchange 成本服务 token。</p>
+            </div>
+
+            <div class="origin-grid">
+              <div class="mini-card">
+                <span class="meta-label">Supabase URL</span>
+                <code id="supabaseUrlValue" class="inline-code"></code>
+                <div class="button-row button-row--compact">
+                  <button id="copySupabaseUrlButton" type="button" class="secondary">复制 URL</button>
+                </div>
+              </div>
+              <div class="mini-card">
+                <span class="meta-label">Publishable key</span>
+                <code id="supabaseKeyValue" class="inline-code"></code>
+                <div class="button-row button-row--compact">
+                  <button id="copySupabaseKeyButton" type="button" class="secondary">复制 key</button>
+                </div>
+              </div>
+            </div>
+
+            <form id="supabaseLoginForm" class="card card--spaced">
+              <div class="split split--compact">
+                <label class="field">
+                  <span>Supabase email</span>
+                  <input
+                    id="supabaseEmailInput"
+                    type="email"
+                    required
+                    autocomplete="username"
+                    spellcheck="false"
+                    placeholder="alice@example.com"
+                  />
+                </label>
+
+                <label class="field">
+                  <span>Supabase 密码</span>
+                  <input
+                    id="supabasePasswordInput"
+                    type="password"
+                    required
+                    autocomplete="current-password"
+                    placeholder="输入 Supabase 密码"
+                  />
+                </label>
+              </div>
+
+              <button class="primary" type="submit">Supabase 登录并 Exchange</button>
+            </form>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
                 <p class="section-kicker">Auth</p>
                 <h2>注册 / 登录</h2>
               </div>
