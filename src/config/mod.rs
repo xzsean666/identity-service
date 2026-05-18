@@ -1,4 +1,4 @@
-use std::{env, fs};
+use std::{env, fmt, fs};
 
 use thiserror::Error;
 
@@ -68,7 +68,7 @@ pub struct ClientConfig {
     pub trusted_origin: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct TokenConfig {
     pub issuer: String,
     pub audience: String,
@@ -84,9 +84,35 @@ pub struct SessionConfig {
     pub session_lifetime_seconds: i64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SecurityConfig {
     pub refresh_token_hmac_secret: String,
+}
+
+impl fmt::Debug for TokenConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("TokenConfig")
+            .field("issuer", &self.issuer)
+            .field("audience", &self.audience)
+            .field(
+                "access_token_lifetime_seconds",
+                &self.access_token_lifetime_seconds,
+            )
+            .field("key_id", &self.key_id)
+            .field("private_key_pem", &"<redacted>")
+            .field("public_key_pem", &"<redacted>")
+            .finish()
+    }
+}
+
+impl fmt::Debug for SecurityConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("SecurityConfig")
+            .field("refresh_token_hmac_secret", &"<redacted>")
+            .finish()
+    }
 }
 
 #[derive(Debug, Error)]
@@ -109,7 +135,9 @@ impl AppConfig {
             "IDENTITY_TOKEN_PUBLIC_KEY_PEM_PATH",
             "./secrets/jwt_public.pem",
         )?;
-        let refresh_token_hmac_secret = required_env("IDENTITY_REFRESH_TOKEN_HMAC_SECRET")?;
+        let refresh_token_hmac_secret = validate_refresh_token_hmac_secret(required_env(
+            "IDENTITY_REFRESH_TOKEN_HMAC_SECRET",
+        )?)?;
 
         Ok(Self {
             http: HttpConfig {
@@ -131,22 +159,28 @@ impl AppConfig {
             tokens: TokenConfig {
                 issuer: optional_env("IDENTITY_TOKEN_ISSUER", "identity-service"),
                 audience: optional_env("IDENTITY_TOKEN_AUDIENCE", "platform-api"),
-                access_token_lifetime_seconds: parse_i64_env(
+                access_token_lifetime_seconds: parse_i64_range_env(
                     "IDENTITY_ACCESS_TOKEN_LIFETIME_SECONDS",
                     900,
+                    1,
+                    86_400,
                 )?,
                 key_id: optional_env("IDENTITY_TOKEN_KEY_ID", "mvp-local-key"),
                 private_key_pem,
                 public_key_pem,
             },
             sessions: SessionConfig {
-                refresh_token_lifetime_seconds: parse_i64_env(
+                refresh_token_lifetime_seconds: parse_i64_range_env(
                     "IDENTITY_REFRESH_TOKEN_LIFETIME_SECONDS",
                     2_592_000,
+                    60,
+                    31_536_000,
                 )?,
-                session_lifetime_seconds: parse_i64_env(
+                session_lifetime_seconds: parse_i64_range_env(
                     "IDENTITY_SESSION_LIFETIME_SECONDS",
                     2_592_000,
+                    60,
+                    31_536_000,
                 )?,
             },
             security: SecurityConfig {
@@ -172,6 +206,21 @@ fn parse_supabase_provider_config() -> Result<SupabaseProviderConfig, ConfigErro
         .transpose()?
         .unwrap_or_else(|| format!("{issuer}/.well-known/jwks.json"));
 
+    if enabled {
+        require_https_or_loopback_url("IDENTITY_PROVIDER_SUPABASE_PROJECT_URL", &project_url)?;
+        require_https_or_loopback_url("IDENTITY_PROVIDER_SUPABASE_ISSUER", &issuer)?;
+        require_https_or_loopback_url("IDENTITY_PROVIDER_SUPABASE_JWKS_URL", &jwks_url)?;
+    }
+    let fixture_tokens_enabled =
+        parse_bool_env("IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED", false)?;
+    if enabled && fixture_tokens_enabled && !is_fixture_project_url_allowed(&project_url) {
+        return Err(ConfigError::InvalidValue {
+            name: "IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED",
+            message: "fixture tokens are only allowed for localhost or example Supabase projects"
+                .to_owned(),
+        });
+    }
+
     Ok(SupabaseProviderConfig {
         enabled,
         auto_provision_enabled: parse_bool_env(
@@ -183,10 +232,7 @@ fn parse_supabase_provider_config() -> Result<SupabaseProviderConfig, ConfigErro
         audience: optional_env("IDENTITY_PROVIDER_SUPABASE_AUDIENCE", "authenticated"),
         jwks_url,
         jwks_json: env::var("IDENTITY_PROVIDER_SUPABASE_JWKS_JSON").ok(),
-        fixture_tokens_enabled: parse_bool_env(
-            "IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED",
-            false,
-        )?,
+        fixture_tokens_enabled,
     })
 }
 
@@ -240,6 +286,39 @@ fn normalize_url_without_trailing_slash(
     }
 
     Ok(normalized)
+}
+
+fn require_https_or_loopback_url(name: &'static str, value: &str) -> Result<(), ConfigError> {
+    if value.starts_with("https://") || is_loopback_http_url(value) {
+        return Ok(());
+    }
+
+    Err(ConfigError::InvalidValue {
+        name,
+        message: "must use https:// unless the host is localhost or loopback".to_owned(),
+    })
+}
+
+pub(crate) fn is_loopback_http_url(value: &str) -> bool {
+    let Some(rest) = value.strip_prefix("http://") else {
+        return false;
+    };
+    let host_port = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    let host = if host_port.starts_with('[') {
+        host_port
+            .split(']')
+            .next()
+            .map(|value| format!("{value}]"))
+            .unwrap_or_default()
+    } else {
+        host_port.split(':').next().unwrap_or(host_port).to_owned()
+    };
+
+    host == "localhost" || host.starts_with("127.") || host == "[::1]"
+}
+
+pub(crate) fn is_fixture_project_url_allowed(value: &str) -> bool {
+    value == "https://example.supabase.co" || is_loopback_http_url(value)
 }
 
 fn parse_frontend_direct_config() -> Result<FrontendDirectConfig, ConfigError> {
@@ -319,6 +398,26 @@ fn required_env(name: &'static str) -> Result<String, ConfigError> {
     env::var(name).map_err(|_| ConfigError::MissingRequired(name))
 }
 
+fn validate_refresh_token_hmac_secret(value: String) -> Result<String, ConfigError> {
+    let trimmed = value.trim();
+    if trimmed.len() < 32 {
+        return Err(ConfigError::InvalidValue {
+            name: "IDENTITY_REFRESH_TOKEN_HMAC_SECRET",
+            message: "must be at least 32 characters".to_owned(),
+        });
+    }
+    if trimmed == "local-docker-refresh-token-hmac-secret-change-before-production"
+        || trimmed == "replace-with-a-long-local-secret"
+    {
+        return Err(ConfigError::InvalidValue {
+            name: "IDENTITY_REFRESH_TOKEN_HMAC_SECRET",
+            message: "must not use a documented placeholder value".to_owned(),
+        });
+    }
+
+    Ok(value)
+}
+
 fn pem_from_env_or_path(
     value_name: &'static str,
     path_name: &'static str,
@@ -382,6 +481,22 @@ fn parse_i64_env(name: &'static str, default_value: i64) -> Result<i64, ConfigEr
             }),
         Err(_) => Ok(default_value),
     }
+}
+
+fn parse_i64_range_env(
+    name: &'static str,
+    default_value: i64,
+    min_value: i64,
+    max_value: i64,
+) -> Result<i64, ConfigError> {
+    let value = parse_i64_env(name, default_value)?;
+    if value < min_value || value > max_value {
+        return Err(ConfigError::InvalidValue {
+            name,
+            message: format!("must be between {min_value} and {max_value}"),
+        });
+    }
+    Ok(value)
 }
 
 fn parse_u16_env(name: &'static str, default_value: u16) -> Result<u16, ConfigError> {
@@ -618,6 +733,67 @@ mod tests {
         });
     }
 
+    #[test]
+    fn supabase_enabled_rejects_non_loopback_http_urls() {
+        with_env_lock(|| {
+            unsafe {
+                env::set_var("IDENTITY_PROVIDER_SUPABASE_ENABLED", "true");
+                env::set_var(
+                    "IDENTITY_PROVIDER_SUPABASE_PROJECT_URL",
+                    "http://auth.example.com",
+                );
+            }
+
+            let result = parse_supabase_provider_config();
+
+            assert!(matches!(
+                result,
+                Err(ConfigError::InvalidValue {
+                    name: "IDENTITY_PROVIDER_SUPABASE_PROJECT_URL",
+                    ..
+                })
+            ));
+        });
+    }
+
+    #[test]
+    fn hmac_secret_rejects_short_and_placeholder_values() {
+        assert!(matches!(
+            validate_refresh_token_hmac_secret("short".to_owned()),
+            Err(ConfigError::InvalidValue {
+                name: "IDENTITY_REFRESH_TOKEN_HMAC_SECRET",
+                ..
+            })
+        ));
+        assert!(matches!(
+            validate_refresh_token_hmac_secret("replace-with-a-long-local-secret".to_owned()),
+            Err(ConfigError::InvalidValue {
+                name: "IDENTITY_REFRESH_TOKEN_HMAC_SECRET",
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn i64_range_parser_rejects_out_of_range_values() {
+        with_env_lock(|| {
+            unsafe {
+                env::set_var("IDENTITY_ACCESS_TOKEN_LIFETIME_SECONDS", "0");
+            }
+
+            let result =
+                parse_i64_range_env("IDENTITY_ACCESS_TOKEN_LIFETIME_SECONDS", 900, 1, 86_400);
+
+            assert!(matches!(
+                result,
+                Err(ConfigError::InvalidValue {
+                    name: "IDENTITY_ACCESS_TOKEN_LIFETIME_SECONDS",
+                    ..
+                })
+            ));
+        });
+    }
+
     fn with_env_lock(run: impl FnOnce()) {
         let lock = ENV_LOCK.get_or_init(|| Mutex::new(()));
         let _guard = lock.lock().unwrap();
@@ -641,6 +817,7 @@ mod tests {
             env::remove_var("IDENTITY_PROVIDER_SUPABASE_JWKS_URL");
             env::remove_var("IDENTITY_PROVIDER_SUPABASE_JWKS_JSON");
             env::remove_var("IDENTITY_PROVIDER_SUPABASE_FIXTURE_TOKENS_ENABLED");
+            env::remove_var("IDENTITY_ACCESS_TOKEN_LIFETIME_SECONDS");
         }
     }
 }

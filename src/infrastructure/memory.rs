@@ -7,6 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     application::{
+        auth::LocalRegistrationRepository,
         error::AppError,
         identity_binding::IdentityRepository,
         password_change::{PasswordChangeCommand, PasswordChangeRepository},
@@ -188,6 +189,50 @@ impl IdentityRepository for InMemoryIdentityRepository {
     }
 }
 
+#[async_trait]
+impl LocalRegistrationRepository for InMemoryIdentityRepository {
+    async fn register_local_user(
+        &self,
+        user: InternalUser,
+        credential: LocalCredential,
+        external_identity: NormalizedExternalIdentity,
+    ) -> Result<InternalUser, AppError> {
+        let identity_key = (
+            external_identity.provider_name.clone(),
+            external_identity.provider_subject.clone(),
+        );
+        let binding = ExternalIdentity {
+            provider_name: external_identity.provider_name,
+            provider_subject: external_identity.provider_subject,
+            internal_user_id: user.internal_user_id,
+            provider_metadata: external_identity.provider_metadata,
+            created_at: user.created_at,
+            updated_at: user.updated_at,
+        };
+
+        let mut state = self.state.lock();
+        if state.users.contains_key(&user.internal_user_id)
+            || state
+                .local_credentials_by_username
+                .contains_key(&credential.normalized_username)
+            || state
+                .identities_by_provider_subject
+                .contains_key(&identity_key)
+        {
+            return Err(AppError::IdentityConflict);
+        }
+
+        state.users.insert(user.internal_user_id, user.clone());
+        state
+            .local_credentials_by_username
+            .insert(credential.normalized_username.clone(), credential);
+        state
+            .identities_by_provider_subject
+            .insert(identity_key, binding);
+        Ok(user)
+    }
+}
+
 pub struct InMemoryLocalCredentialRepository {
     state: SharedState,
 }
@@ -358,7 +403,9 @@ impl PasswordChangeRepository for InMemoryPasswordChangeRepository {
         );
 
         for refresh_record in state.refresh_tokens_by_hash.values_mut() {
-            if refresh_record.internal_user_id == command.internal_user_id {
+            if refresh_record.internal_user_id == command.internal_user_id
+                && refresh_record.status == RefreshTokenStatus::Active
+            {
                 refresh_record.status = RefreshTokenStatus::Revoked;
                 refresh_record.revoked_at = Some(command.now);
             }
@@ -490,7 +537,9 @@ impl SessionRepository for InMemorySessionRepository {
             session.revoked_at = Some(now);
         }
         for refresh_record in state.refresh_tokens_by_hash.values_mut() {
-            if refresh_record.session_id == session_id {
+            if refresh_record.session_id == session_id
+                && refresh_record.status == RefreshTokenStatus::Active
+            {
                 refresh_record.status = RefreshTokenStatus::Revoked;
                 refresh_record.revoked_at = Some(now);
             }
@@ -520,7 +569,9 @@ impl SessionRepository for InMemorySessionRepository {
         }
 
         for refresh_record in state.refresh_tokens_by_hash.values_mut() {
-            if refresh_record.internal_user_id == internal_user_id {
+            if refresh_record.internal_user_id == internal_user_id
+                && refresh_record.status == RefreshTokenStatus::Active
+            {
                 refresh_record.status = RefreshTokenStatus::Revoked;
                 refresh_record.revoked_at = Some(now);
             }

@@ -111,6 +111,7 @@ impl PasswordChangeRepository for SqlitePasswordChangeRepository {
             UPDATE refresh_token_records
             SET status = 'revoked', revoked_at = ?2
             WHERE internal_user_id = ?1
+                AND status = 'active'
             "#,
         )
         .bind(uuid_to_database(command.internal_user_id))

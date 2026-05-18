@@ -37,7 +37,7 @@ cp .env.example .env
 For the default in-memory MVP, the only value you normally need to change is:
 
 ```bash
-IDENTITY_REFRESH_TOKEN_HMAC_SECRET=replace-with-a-long-local-secret
+IDENTITY_REFRESH_TOKEN_HMAC_SECRET=change-this-to-a-random-32-byte-or-longer-secret
 ```
 
 Supabase is still part of the MVP.
@@ -162,9 +162,9 @@ The compose files now set only the container-specific defaults:
 - `IDENTITY_HTTP_HOST=0.0.0.0`
 - `IDENTITY_HTTP_PORT=3000`
 - JWT key paths under `/app/secrets`
-- a local-only default `IDENTITY_REFRESH_TOKEN_HMAC_SECRET`
 
 Other `IDENTITY_*` variables should live in `.env` for Docker use.
+`IDENTITY_REFRESH_TOKEN_HMAC_SECRET` is required; compose startup fails when it is missing.
 
 Example `.env` values for PostgreSQL:
 
@@ -186,7 +186,7 @@ Then start the container:
 ./scripts/docker_start_source.sh -d
 ```
 
-Do not use the default HMAC secret in production.
+Use a unique high-entropy HMAC secret in every environment.
 
 ## Backend JWT Integration
 

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use axum::{
     Json, Router,
-    extract::State,
+    extract::{DefaultBodyLimit, FromRequest, Request, State},
     http::{
         HeaderMap, HeaderValue, Method, StatusCode,
         header::{AUTHORIZATION, CONTENT_TYPE},
@@ -11,6 +11,7 @@ use axum::{
     routing::{get, post},
 };
 use jsonwebtoken::jwk::JwkSet;
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use tower_http::cors::CorsLayer;
 
@@ -19,6 +20,8 @@ use crate::{
     config::FrontendDirectConfig,
     domain::user::InternalUser,
 };
+
+const MAX_JSON_BODY_BYTES: usize = 16 * 1024;
 
 #[derive(Clone)]
 pub struct HttpState {
@@ -39,12 +42,15 @@ pub fn router(services: Arc<ApplicationServices>) -> Router {
         .route("/v1/auth/refresh", post(refresh))
         .route("/v1/auth/logout", post(logout))
         .route("/v1/users/me", get(current_user))
+        .fallback(not_found)
         .with_state(state);
 
     if frontend_direct.enabled {
-        router.layer(frontend_direct_cors_layer(&frontend_direct))
-    } else {
         router
+            .layer(DefaultBodyLimit::max(MAX_JSON_BODY_BYTES))
+            .layer(frontend_direct_cors_layer(&frontend_direct))
+    } else {
+        router.layer(DefaultBodyLimit::max(MAX_JSON_BODY_BYTES))
     }
 }
 
@@ -59,6 +65,27 @@ async fn readiness(State(state): State<HttpState>) -> Result<impl IntoResponse, 
 
 async fn jwks(State(state): State<HttpState>) -> Result<Json<JwkSet>, AppError> {
     state.services.auth_service.public_jwks().map(Json)
+}
+
+async fn not_found() -> AppError {
+    AppError::NotFound
+}
+
+struct AppJson<T>(T);
+
+impl<S, T> FromRequest<S> for AppJson<T>
+where
+    S: Send + Sync,
+    T: DeserializeOwned,
+{
+    type Rejection = AppError;
+
+    async fn from_request(request: Request, state: &S) -> Result<Self, Self::Rejection> {
+        Json::<T>::from_request(request, state)
+            .await
+            .map(|Json(value)| Self(value))
+            .map_err(|_| AppError::ValidationFailed)
+    }
 }
 
 #[derive(Deserialize)]
@@ -95,7 +122,7 @@ struct LogoutResponse {
 
 async fn register(
     State(state): State<HttpState>,
-    Json(request): Json<PasswordAuthRequest>,
+    AppJson(request): AppJson<PasswordAuthRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
     state
         .services
@@ -107,7 +134,7 @@ async fn register(
 
 async fn login(
     State(state): State<HttpState>,
-    Json(request): Json<PasswordAuthRequest>,
+    AppJson(request): AppJson<PasswordAuthRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
     state
         .services
@@ -120,7 +147,7 @@ async fn login(
 async fn change_password(
     State(state): State<HttpState>,
     headers: HeaderMap,
-    Json(request): Json<PasswordChangeRequest>,
+    AppJson(request): AppJson<PasswordChangeRequest>,
 ) -> Result<Json<TokenResponse>, AppError> {
     let access_token = bearer_token(&headers)?;
     let tokens = state
@@ -137,7 +164,7 @@ async fn change_password(
 
 async fn exchange_supabase(
     State(state): State<HttpState>,
-    Json(request): Json<SupabaseExchangeRequest>,
+    AppJson(request): AppJson<SupabaseExchangeRequest>,
 ) -> Result<Json<AuthResponse>, AppError> {
     state
         .services
@@ -149,7 +176,7 @@ async fn exchange_supabase(
 
 async fn refresh(
     State(state): State<HttpState>,
-    Json(request): Json<RefreshRequest>,
+    AppJson(request): AppJson<RefreshRequest>,
 ) -> Result<Json<TokenResponse>, AppError> {
     let tokens = state
         .services

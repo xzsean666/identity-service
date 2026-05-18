@@ -48,6 +48,59 @@ impl SessionRepository for PostgresSessionRepository {
         now: DateTime<Utc>,
     ) -> Result<(Session, RefreshTokenRecord), AppError> {
         let mut transaction = self.pool.begin().await.map_err(map_sqlx_error)?;
+        let candidate_row = sqlx::query(
+            r#"
+            SELECT
+                refresh_token_id,
+                session_id,
+                internal_user_id,
+                token_family_id,
+                token_hash,
+                status,
+                issued_at,
+                expires_at,
+                consumed_at,
+                revoked_at
+            FROM refresh_token_records
+            WHERE token_hash = $1
+            "#,
+        )
+        .bind(token_hash)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        let candidate = candidate_row
+            .map(row_to_refresh_token_record)
+            .transpose()?
+            .ok_or(AppError::TokenInvalid)?;
+
+        let session_row = sqlx::query(
+            r#"
+            SELECT
+                session_id,
+                internal_user_id,
+                provider_name,
+                client_id,
+                device_metadata,
+                status,
+                issued_at,
+                expires_at,
+                revoked_at
+            FROM sessions
+            WHERE session_id = $1
+            FOR UPDATE
+            "#,
+        )
+        .bind(candidate.session_id)
+        .fetch_optional(&mut *transaction)
+        .await
+        .map_err(map_sqlx_error)?;
+        let session = session_row
+            .map(row_to_session)
+            .transpose()?
+            .ok_or(AppError::TokenInvalid)?;
+
         let existing_row = sqlx::query(
             r#"
             SELECT
@@ -119,32 +172,6 @@ impl SessionRepository for PostgresSessionRepository {
             return Err(AppError::TokenInvalid);
         }
 
-        let session_row = sqlx::query(
-            r#"
-            SELECT
-                session_id,
-                internal_user_id,
-                provider_name,
-                client_id,
-                device_metadata,
-                status,
-                issued_at,
-                expires_at,
-                revoked_at
-            FROM sessions
-            WHERE session_id = $1
-            FOR UPDATE
-            "#,
-        )
-        .bind(existing.session_id)
-        .fetch_optional(&mut *transaction)
-        .await
-        .map_err(map_sqlx_error)?;
-        let session = session_row
-            .map(row_to_session)
-            .transpose()?
-            .ok_or(AppError::TokenInvalid)?;
-
         if session.status != SessionStatus::Active || session.expires_at <= now {
             return Err(AppError::TokenInvalid);
         }
@@ -204,6 +231,7 @@ impl SessionRepository for PostgresSessionRepository {
             UPDATE refresh_token_records
             SET status = 'revoked', revoked_at = $2
             WHERE session_id = $1
+                AND status = 'active'
             "#,
         )
         .bind(session_id)
@@ -263,6 +291,7 @@ impl SessionRepository for PostgresSessionRepository {
             UPDATE refresh_token_records
             SET status = 'revoked', revoked_at = $2
             WHERE internal_user_id = $1
+                AND status = 'active'
             "#,
         )
         .bind(internal_user_id)

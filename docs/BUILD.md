@@ -109,7 +109,7 @@ Alternatively, provide PEM contents directly through:
 Minimum local environment:
 
 ```bash
-export IDENTITY_REFRESH_TOKEN_HMAC_SECRET="replace-with-a-long-local-secret"
+export IDENTITY_REFRESH_TOKEN_HMAC_SECRET="change-this-to-a-random-32-byte-or-longer-secret"
 ```
 
 Optional environment variables:

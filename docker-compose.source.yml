@@ -14,6 +14,13 @@ services:
         RUSTUP_DIST_SERVER: ${IDENTITY_DOCKER_RUSTUP_DIST_SERVER:-https://rsproxy.cn}
         RUSTUP_UPDATE_ROOT: ${IDENTITY_DOCKER_RUSTUP_UPDATE_ROOT:-https://rsproxy.cn/rustup}
     user: ${IDENTITY_DOCKER_USER:-10001:10001}
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     ports:
       - "${IDENTITY_DOCKER_HTTP_PORT:-3000}:3000"
     env_file:
@@ -22,8 +29,9 @@ services:
     environment:
       IDENTITY_HTTP_HOST: 0.0.0.0
       IDENTITY_HTTP_PORT: "3000"
-      IDENTITY_REFRESH_TOKEN_HMAC_SECRET: ${IDENTITY_REFRESH_TOKEN_HMAC_SECRET:-local-docker-refresh-token-hmac-secret-change-before-production}
+      IDENTITY_REFRESH_TOKEN_HMAC_SECRET: ${IDENTITY_REFRESH_TOKEN_HMAC_SECRET:?Set IDENTITY_REFRESH_TOKEN_HMAC_SECRET in .env or the shell}
       IDENTITY_TOKEN_PRIVATE_KEY_PEM_PATH: /app/secrets/jwt_private.pem
       IDENTITY_TOKEN_PUBLIC_KEY_PEM_PATH: /app/secrets/jwt_public.pem
     volumes:
       - ./secrets:/app/secrets:ro
+      - ./data:/app/data

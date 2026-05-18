@@ -16,6 +16,11 @@ use crate::{
     },
 };
 
+const USERNAME_MIN_LENGTH: usize = 3;
+const USERNAME_MAX_LENGTH: usize = 254;
+const PASSWORD_MIN_LENGTH: usize = 8;
+const PASSWORD_MAX_LENGTH: usize = 1024;
+
 #[derive(Clone, Debug)]
 pub struct LocalCredential {
     pub credential_id: Uuid,
@@ -107,10 +112,24 @@ impl LocalPasswordProvider {
         username: &str,
         password: &str,
     ) -> Result<LocalCredential, AppError> {
+        let credential = Self::prepare_credential_for_user(internal_user_id, username, password)?;
+        let normalized_username = credential.normalized_username.clone();
+
+        self.credential_repository
+            .create_credential(&normalized_username, credential)
+            .await
+    }
+
+    pub fn prepare_credential_for_user(
+        internal_user_id: Uuid,
+        username: &str,
+        password: &str,
+    ) -> Result<LocalCredential, AppError> {
         validate_username_and_password(username, password)?;
         let now = Utc::now();
         let normalized_username = Self::normalize_username(username);
-        let credential = LocalCredential {
+
+        Ok(LocalCredential {
             credential_id: Uuid::new_v4(),
             internal_user_id,
             username: username.trim().to_owned(),
@@ -121,11 +140,7 @@ impl LocalPasswordProvider {
             status: LocalCredentialStatus::Active,
             created_at: now,
             updated_at: now,
-        };
-
-        self.credential_repository
-            .create_credential(&normalized_username, credential)
-            .await
+        })
     }
 
     pub async fn change_password(
@@ -212,14 +227,17 @@ pub type SharedLocalPasswordProvider = Arc<LocalPasswordProvider>;
 
 fn validate_username_and_password(username: &str, password: &str) -> Result<(), AppError> {
     let normalized_username = LocalPasswordProvider::normalize_username(username);
-    if normalized_username.len() < 3 {
+    if normalized_username.len() < USERNAME_MIN_LENGTH
+        || normalized_username.len() > USERNAME_MAX_LENGTH
+        || normalized_username.chars().any(char::is_control)
+    {
         return Err(AppError::ValidationFailed);
     }
     validate_password(password)
 }
 
 fn validate_password(password: &str) -> Result<(), AppError> {
-    if password.len() < 8 {
+    if password.len() < PASSWORD_MIN_LENGTH || password.len() > PASSWORD_MAX_LENGTH {
         return Err(AppError::ValidationFailed);
     }
     Ok(())

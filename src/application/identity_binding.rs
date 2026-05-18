@@ -63,23 +63,38 @@ impl IdentityBindingService {
         let now = Utc::now();
 
         if let Some(user) = self.repository.bound_user(&external_identity).await? {
-            if user.account_status != AccountStatus::Active {
-                return Err(AppError::AccountDisabled);
+            if let BindingMode::LinkToExisting(internal_user_id) = binding_mode {
+                if user.internal_user_id != internal_user_id {
+                    return Err(AppError::IdentityConflict);
+                }
             }
-            return Ok(user);
+            return ensure_active_user(user);
         }
 
         match binding_mode {
             BindingMode::LoginOnly => Err(AppError::InvalidCredentials),
             BindingMode::RegisterOrLogin => {
-                self.repository
-                    .bind_new_active_user(external_identity, now)
-                    .await
+                let result = self
+                    .repository
+                    .bind_new_active_user(external_identity.clone(), now)
+                    .await;
+                match result {
+                    Ok(user) => Ok(user),
+                    Err(AppError::IdentityConflict) => self
+                        .repository
+                        .bound_user(&external_identity)
+                        .await?
+                        .map(ensure_active_user)
+                        .unwrap_or(Err(AppError::IdentityConflict)),
+                    Err(error) => Err(error),
+                }
             }
             BindingMode::LinkToExisting(internal_user_id) => {
-                self.repository
+                let user = self
+                    .repository
                     .bind_existing_user(internal_user_id, external_identity, now)
-                    .await
+                    .await?;
+                ensure_active_user(user)
             }
         }
     }
@@ -91,6 +106,13 @@ impl IdentityBindingService {
     pub async fn delete_user(&self, internal_user_id: Uuid) -> Result<(), AppError> {
         self.repository.delete_user(internal_user_id).await
     }
+}
+
+fn ensure_active_user(user: InternalUser) -> Result<InternalUser, AppError> {
+    if user.account_status != AccountStatus::Active {
+        return Err(AppError::AccountDisabled);
+    }
+    Ok(user)
 }
 
 #[cfg(test)]
@@ -138,6 +160,34 @@ mod tests {
                 .resolve_identity(test_identity("missing"), BindingMode::LoginOnly)
                 .await,
             Err(AppError::InvalidCredentials)
+        ));
+    }
+
+    #[tokio::test]
+    async fn link_to_existing_rejects_identity_bound_to_another_user() {
+        let service = IdentityBindingService::new(Arc::new(InMemoryIdentityRepository::new(
+            InMemoryState::shared(),
+        )));
+        let first_user = service.create_active_user().await.unwrap();
+        let second_user = service.create_active_user().await.unwrap();
+        let identity = test_identity("already-bound");
+
+        service
+            .resolve_identity(
+                identity.clone(),
+                BindingMode::LinkToExisting(first_user.internal_user_id),
+            )
+            .await
+            .unwrap();
+
+        assert!(matches!(
+            service
+                .resolve_identity(
+                    identity,
+                    BindingMode::LinkToExisting(second_user.internal_user_id)
+                )
+                .await,
+            Err(AppError::IdentityConflict)
         ));
     }
 }

@@ -264,6 +264,23 @@ async fn disabled_local_provider_returns_provider_disabled() {
     assert_provider_disabled(login);
 }
 
+#[tokio::test]
+async fn malformed_json_returns_validation_error_contract() {
+    let mut app = test_app(true).await;
+    let request = Request::builder()
+        .method(Method::POST)
+        .uri("/v1/auth/login")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from("{"))
+        .expect("request should build");
+
+    let response = call(&mut app, request).await;
+
+    assert_eq!(response.status, StatusCode::BAD_REQUEST);
+    assert_eq!(response.body["error_code"], "validation_failed");
+    assert_eq!(response.body["retryable"], false);
+}
+
 async fn test_app(local_password_enabled: bool) -> axum::Router {
     router(
         build_application_services(test_config(local_password_enabled))

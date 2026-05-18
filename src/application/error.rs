@@ -71,15 +71,44 @@ impl AppError {
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
+
+    fn public_message(&self) -> &'static str {
+        match self {
+            Self::ValidationFailed => "validation failed",
+            Self::InvalidCredentials => "invalid credentials",
+            Self::ProviderDisabled => "provider disabled",
+            Self::ProviderVerificationFailed => "provider verification failed",
+            Self::IdentityConflict => "identity conflict",
+            Self::Unauthorized => "unauthorized",
+            Self::TokenInvalid => "token invalid",
+            Self::RefreshTokenReused => "refresh token reused",
+            Self::AccountDisabled => "account disabled",
+            Self::NotFound => "not found",
+            Self::DependencyUnavailable(_) => "dependency unavailable",
+            Self::Internal(_) => "internal error",
+        }
+    }
+
+    fn retryable(&self) -> bool {
+        matches!(self, Self::DependencyUnavailable(_))
+    }
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> axum::response::Response {
+        match &self {
+            Self::Internal(message) => tracing::error!(error = %message, "internal error"),
+            Self::DependencyUnavailable(message) => {
+                tracing::warn!(error = %message, "dependency unavailable")
+            }
+            _ => {}
+        }
+
         let status = self.status_code();
         let body = ErrorResponse {
             error_code: self.error_code(),
-            message: self.to_string(),
-            retryable: false,
+            message: self.public_message().to_owned(),
+            retryable: self.retryable(),
         };
         (status, Json(body)).into_response()
     }

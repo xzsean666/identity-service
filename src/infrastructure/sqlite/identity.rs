@@ -4,16 +4,19 @@ use sqlx::{Row, SqlitePool};
 use uuid::Uuid;
 
 use crate::{
-    application::{error::AppError, identity_binding::IdentityRepository},
+    application::{
+        auth::LocalRegistrationRepository, error::AppError, identity_binding::IdentityRepository,
+    },
     domain::{
         identity::{ExternalIdentity, NormalizedExternalIdentity},
         user::InternalUser,
     },
+    providers::local_password::LocalCredential,
 };
 
 use super::{
-    account_status_to_database, datetime_to_database, map_sqlx_error, row_to_internal_user,
-    uuid_to_database,
+    account_status_to_database, datetime_to_database, local_credential_status_to_database,
+    map_sqlx_error, row_to_internal_user, uuid_to_database,
 };
 
 #[derive(Clone)]
@@ -245,5 +248,101 @@ impl IdentityRepository for SqliteIdentityRepository {
         .map_err(map_sqlx_error)?;
 
         Ok(())
+    }
+}
+
+#[async_trait]
+impl LocalRegistrationRepository for SqliteIdentityRepository {
+    async fn register_local_user(
+        &self,
+        user: InternalUser,
+        credential: LocalCredential,
+        external_identity: NormalizedExternalIdentity,
+    ) -> Result<InternalUser, AppError> {
+        let binding = ExternalIdentity {
+            provider_name: external_identity.provider_name,
+            provider_subject: external_identity.provider_subject,
+            internal_user_id: user.internal_user_id,
+            provider_metadata: external_identity.provider_metadata,
+            created_at: user.created_at,
+            updated_at: user.updated_at,
+        };
+        let mut transaction = self.pool.begin().await.map_err(map_sqlx_error)?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO internal_users (
+                internal_user_id,
+                account_status,
+                created_at,
+                updated_at
+            )
+            VALUES (?1, ?2, ?3, ?4)
+            "#,
+        )
+        .bind(uuid_to_database(user.internal_user_id))
+        .bind(account_status_to_database(&user.account_status))
+        .bind(datetime_to_database(user.created_at))
+        .bind(datetime_to_database(user.updated_at))
+        .execute(&mut *transaction)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO local_credentials (
+                credential_id,
+                internal_user_id,
+                username,
+                normalized_username,
+                password_hash,
+                password_hash_algorithm,
+                password_hash_parameters,
+                status,
+                created_at,
+                updated_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            "#,
+        )
+        .bind(uuid_to_database(credential.credential_id))
+        .bind(uuid_to_database(credential.internal_user_id))
+        .bind(&credential.username)
+        .bind(&credential.normalized_username)
+        .bind(&credential.password_hash)
+        .bind(&credential.password_hash_algorithm)
+        .bind(&credential.password_hash_parameters)
+        .bind(local_credential_status_to_database(&credential.status))
+        .bind(datetime_to_database(credential.created_at))
+        .bind(datetime_to_database(credential.updated_at))
+        .execute(&mut *transaction)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        sqlx::query(
+            r#"
+            INSERT INTO external_identities (
+                provider_name,
+                provider_subject,
+                internal_user_id,
+                provider_metadata,
+                created_at,
+                updated_at
+            )
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+            "#,
+        )
+        .bind(&binding.provider_name)
+        .bind(&binding.provider_subject)
+        .bind(uuid_to_database(binding.internal_user_id))
+        .bind(binding.provider_metadata.to_string())
+        .bind(datetime_to_database(binding.created_at))
+        .bind(datetime_to_database(binding.updated_at))
+        .execute(&mut *transaction)
+        .await
+        .map_err(map_sqlx_error)?;
+
+        transaction.commit().await.map_err(map_sqlx_error)?;
+        Ok(user)
     }
 }

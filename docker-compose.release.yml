@@ -10,6 +10,13 @@ services:
         DEBIAN_IMAGE: ${IDENTITY_DOCKER_DEBIAN_IMAGE:-debian:bookworm-slim}
         APT_MIRROR: ${IDENTITY_DOCKER_APT_MIRROR:-http://mirrors.aliyun.com}
     user: ${IDENTITY_DOCKER_USER:-10001:10001}
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp
     restart: unless-stopped
     ports:
       - "${IDENTITY_DOCKER_HTTP_PORT:-10032}:3000"
@@ -19,7 +26,7 @@ services:
     environment:
       IDENTITY_HTTP_HOST: 0.0.0.0
       IDENTITY_HTTP_PORT: "3000"
-      IDENTITY_REFRESH_TOKEN_HMAC_SECRET: ${IDENTITY_REFRESH_TOKEN_HMAC_SECRET:-local-docker-refresh-token-hmac-secret-change-before-production}
+      IDENTITY_REFRESH_TOKEN_HMAC_SECRET: ${IDENTITY_REFRESH_TOKEN_HMAC_SECRET:?Set IDENTITY_REFRESH_TOKEN_HMAC_SECRET in .env or the shell}
       IDENTITY_TOKEN_PRIVATE_KEY_PEM_PATH: /app/secrets/jwt_private.pem
       IDENTITY_TOKEN_PUBLIC_KEY_PEM_PATH: /app/secrets/jwt_public.pem
     volumes:

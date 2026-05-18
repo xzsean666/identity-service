@@ -11,7 +11,7 @@ use tokio::sync::RwLock;
 
 use crate::{
     application::error::AppError,
-    config::SupabaseProviderConfig,
+    config::{SupabaseProviderConfig, is_fixture_project_url_allowed, is_loopback_http_url},
     domain::identity::{NormalizedExternalIdentity, SUPABASE_PROVIDER},
     providers::{
         IdentityProviderAdapter, ProviderDescriptor, ProviderEntryKind, ProviderVerificationRequest,
@@ -120,6 +120,12 @@ impl SupabaseProvider {
     }
 
     async fn fetch_remote_jwks(&self) -> Result<JwkSet, AppError> {
+        if !(self.config.jwks_url.starts_with("https://")
+            || is_loopback_http_url(&self.config.jwks_url))
+        {
+            return Err(AppError::ProviderVerificationFailed);
+        }
+
         self.http_client
             .get(&self.config.jwks_url)
             .send()
@@ -134,6 +140,8 @@ impl SupabaseProvider {
 
     fn fixture_tokens_enabled(&self) -> bool {
         self.config.fixture_tokens_enabled
+            && cfg!(debug_assertions)
+            && is_fixture_project_url_allowed(&self.config.project_url)
     }
 
     fn validate_jwk_for_header(
@@ -473,6 +481,30 @@ mod tests {
         assert!(matches!(result, Err(AppError::ProviderVerificationFailed)));
     }
 
+    #[tokio::test]
+    async fn fixture_token_requires_standard_claims() {
+        let provider = SupabaseProvider::new(SupabaseProviderConfig {
+            enabled: true,
+            auto_provision_enabled: true,
+            project_url: "https://example.supabase.co".to_owned(),
+            issuer: "https://example.supabase.co/auth/v1".to_owned(),
+            audience: "authenticated".to_owned(),
+            jwks_url: "https://example.supabase.co/auth/v1/.well-known/jwks.json".to_owned(),
+            jwks_json: None,
+            fixture_tokens_enabled: true,
+        });
+        let access_token = serde_json::json!({
+            "sub": "supabase-user-1"
+        })
+        .to_string();
+
+        let result = provider
+            .verify(ProviderVerificationRequest::SupabaseToken { access_token })
+            .await;
+
+        assert!(matches!(result, Err(AppError::ProviderVerificationFailed)));
+    }
+
     async fn jwks_test_server(jwks_response_body: String) -> String {
         use tokio::{
             io::{AsyncReadExt, AsyncWriteExt},
@@ -510,9 +542,9 @@ struct SupabaseJwtClaims {
 #[derive(Debug, Deserialize)]
 struct SupabaseTokenFixture {
     sub: String,
-    exp: Option<i64>,
-    iss: Option<String>,
-    aud: Option<String>,
+    exp: i64,
+    iss: String,
+    aud: String,
     email: Option<String>,
 }
 
@@ -549,20 +581,14 @@ impl IdentityProviderAdapter for SupabaseProvider {
         if fixture.sub.trim().is_empty() {
             return Err(AppError::ProviderVerificationFailed);
         }
-        if let Some(exp) = fixture.exp {
-            if exp < Utc::now().timestamp() {
-                return Err(AppError::ProviderVerificationFailed);
-            }
+        if fixture.exp < Utc::now().timestamp() {
+            return Err(AppError::ProviderVerificationFailed);
         }
-        if let Some(issuer) = &fixture.iss {
-            if issuer != &self.config.issuer {
-                return Err(AppError::ProviderVerificationFailed);
-            }
+        if fixture.iss != self.config.issuer.as_str() {
+            return Err(AppError::ProviderVerificationFailed);
         }
-        if let Some(audience) = &fixture.aud {
-            if audience != &self.config.audience {
-                return Err(AppError::ProviderVerificationFailed);
-            }
+        if fixture.aud != self.config.audience.as_str() {
+            return Err(AppError::ProviderVerificationFailed);
         }
 
         Ok(NormalizedExternalIdentity {

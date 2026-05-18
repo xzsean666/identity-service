@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: identity
+          POSTGRES_PASSWORD: identity
+          POSTGRES_DB: identity_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      IDENTITY_PERSISTENCE_BACKEND: postgres
+      IDENTITY_DATABASE_URL: postgres://identity:identity@localhost:5432/identity_test
+      IDENTITY_REFRESH_TOKEN_HMAC_SECRET: ci-refresh-token-hmac-secret-at-least-32-chars
+      IDENTITY_TOKEN_PRIVATE_KEY_PEM_PATH: ./tests/fixtures/jwt_private.pem
+      IDENTITY_TOKEN_PUBLIC_KEY_PEM_PATH: ./tests/fixtures/jwt_public.pem
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Format
+        run: cargo fmt --check
+      - name: Check
+        run: cargo check --locked --all-targets
+      - name: Migrate PostgreSQL
+        run: cargo run --locked --bin migrate -- up
+      - name: Test
+        run: cargo test --locked
+      - name: Docker source build
+        run: docker build -f docker/Dockerfile.source .

@@ -203,6 +203,7 @@ impl SessionRepository for SqliteSessionRepository {
             UPDATE refresh_token_records
             SET status = 'revoked', revoked_at = ?2
             WHERE session_id = ?1
+                AND status = 'active'
             "#,
         )
         .bind(uuid_to_database(session_id))
@@ -261,6 +262,7 @@ impl SessionRepository for SqliteSessionRepository {
             UPDATE refresh_token_records
             SET status = 'revoked', revoked_at = ?2
             WHERE internal_user_id = ?1
+                AND status = 'active'
             "#,
         )
         .bind(uuid_to_database(internal_user_id))

@@ -104,6 +104,43 @@ async fn e2e_disabled_providers_return_stable_errors() {
     );
 }
 
+#[tokio::test]
+async fn e2e_disabled_local_provider_blocks_password_change_for_existing_session() {
+    let database_url = sqlite_database_url("disabled-local-password-change");
+    sqlite::run_pending_migrations(&database_url)
+        .await
+        .expect("SQLite E2E tests should run migrations");
+
+    let enabled_config = test_config(TestBackend::Sqlite(database_url.clone()), true, true);
+    let mut enabled_app = test_app(enabled_config).await;
+    let register = post_json(
+        &mut enabled_app,
+        "/v1/auth/register",
+        json!({
+            "username": format!("disabled-change-{}@example.test", Uuid::new_v4()),
+            "password": "correct horse battery staple"
+        }),
+    )
+    .await;
+    assert_eq!(register.status, StatusCode::OK);
+    let access_token = token(&register.body, "access_token");
+
+    let disabled_config = test_config(TestBackend::Sqlite(database_url), false, true);
+    let mut disabled_app = test_app(disabled_config).await;
+    let change = post_json_with_bearer(
+        &mut disabled_app,
+        "/v1/auth/password/change",
+        &access_token,
+        json!({
+            "current_password": "correct horse battery staple",
+            "new_password": "new correct horse battery staple"
+        }),
+    )
+    .await;
+
+    assert_error(change, StatusCode::FORBIDDEN, "provider_disabled");
+}
+
 async fn run_full_identity_platform_flow(
     app: &mut axum::Router,
     backend_label: &str,
