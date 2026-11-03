@@ -1,0 +1,7 @@
+/target
+.env
+*.pem
+*.key
+*.db
+*.sqlite
+.DS_Store
