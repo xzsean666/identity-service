@@ -31,6 +31,9 @@ pub struct Config {
     pub x_client_id: Option<String>,
     pub supabase_url: Option<String>,
     pub supabase_jwt_secret: Option<String>,
+    pub enable_mock_provider: bool,
+    pub database_max_connections: u32,
+    pub database_min_connections: u32,
 }
 
 impl Config {
@@ -53,6 +56,16 @@ impl Config {
         let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
             "postgres://postgres:postgres@localhost:5432/identity".to_string()
         });
+
+        let database_max_connections = env::var("DATABASE_MAX_CONNECTIONS")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(20);
+
+        let database_min_connections = env::var("DATABASE_MIN_CONNECTIONS")
+            .ok()
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(5);
 
         let jwt_issuer = env::var("JWT_ISSUER").unwrap_or_else(|_| "identity-service".to_string());
         let jwt_audience =
@@ -78,6 +91,15 @@ impl Config {
         let supabase_url = env::var("SUPABASE_URL").ok();
         let supabase_jwt_secret = env::var("SUPABASE_JWT_SECRET").ok();
 
+        // In production, mock provider is strictly forbidden
+        let enable_mock_provider = if env.is_production() {
+            false
+        } else {
+            env::var("ENABLE_MOCK_PROVIDER")
+                .map(|v| v.eq_ignore_ascii_case("true") || v == "1")
+                .unwrap_or(true) // In dev/test default to true for seamless local testing
+        };
+
         Ok(Self {
             env,
             host,
@@ -94,6 +116,9 @@ impl Config {
             x_client_id,
             supabase_url,
             supabase_jwt_secret,
+            enable_mock_provider,
+            database_max_connections,
+            database_min_connections,
         })
     }
 }

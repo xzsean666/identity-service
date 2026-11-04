@@ -4,4 +4,4 @@ pub mod user;
 
 pub use identity::{AuthProvider, ExternalIdentity, Identity};
 pub use refresh_token::RefreshToken;
-pub use user::{UpdateUserDto, User, UserResponse};
+pub use user::{PublicUserResponse, UpdateUserDto, User, UserResponse};

@@ -69,7 +69,7 @@ async fn test_provider_registry() {
 
 #[tokio::test]
 async fn test_supabase_jwt_fallback() {
-    let provider = SupabaseProvider::new(None, None);
+    let provider = SupabaseProvider::new(None, None, false);
 
     // Create a mock Supabase JWT payload
     let payload = serde_json::json!({
@@ -88,11 +88,15 @@ async fn test_supabase_jwt_fallback() {
     let ident = provider
         .verify(&token)
         .await
-        .expect("Supabase offline JWT parsing should succeed");
+        .expect("Supabase offline JWT parsing should succeed in non-production");
 
     assert_eq!(ident.provider, "supabase");
     assert_eq!(ident.provider_user_id, "supabase_user_123");
     assert_eq!(ident.email, Some("supabase@example.com".to_string()));
     assert_eq!(ident.name, Some("Supabase User".to_string()));
     assert_eq!(ident.avatar_url, Some("https://example.com/sb.png".to_string()));
+
+    // Verify that production rejects unconfigured Supabase
+    let prod_provider = SupabaseProvider::new(None, None, true);
+    assert!(prod_provider.verify(&token).await.is_err());
 }

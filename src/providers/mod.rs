@@ -43,12 +43,18 @@ impl ProviderRegistry {
     pub fn from_config(config: &Config) -> Self {
         let mut registry = Self::new();
 
-        registry.register(Arc::new(MockProvider::new()));
-        registry.register(Arc::new(GoogleProvider::new(config.google_client_id.clone())));
+        if config.enable_mock_provider {
+            registry.register(Arc::new(MockProvider::new()));
+        }
+        registry.register(Arc::new(GoogleProvider::new(
+            config.google_client_id.clone(),
+            config.env.is_production(),
+        )));
         registry.register(Arc::new(XProvider::new(config.x_client_id.clone())));
         registry.register(Arc::new(SupabaseProvider::new(
             config.supabase_url.clone(),
             config.supabase_jwt_secret.clone(),
+            config.env.is_production(),
         )));
 
         registry

@@ -879,6 +879,7 @@ dependencies = [
  "chrono",
  "dotenvy",
  "ed25519-dalek",
+ "hmac",
  "http-body-util",
  "hyper",
  "rand_core 0.6.4",

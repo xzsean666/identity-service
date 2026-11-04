@@ -6,8 +6,17 @@ use std::time::Duration;
 use uuid::Uuid;
 
 pub async fn init_pool(database_url: &str) -> Result<PgPool, AppError> {
+    init_pool_with_options(database_url, 20, 5).await
+}
+
+pub async fn init_pool_with_options(
+    database_url: &str,
+    max_connections: u32,
+    min_connections: u32,
+) -> Result<PgPool, AppError> {
     let pool = PgPoolOptions::new()
-        .max_connections(20)
+        .max_connections(max_connections)
+        .min_connections(min_connections)
         .acquire_timeout(Duration::from_secs(5))
         .idle_timeout(Duration::from_secs(600))
         .connect(database_url)
@@ -236,10 +245,66 @@ pub async fn revoke_all_user_refresh_tokens(
         r#"
         UPDATE refresh_tokens
         SET revoked = true
-        WHERE user_id = $1
+        WHERE user_id = $1 AND revoked = false
         "#,
     )
     .bind(user_id)
+    .execute(pool)
+    .await?;
+
+    Ok(result.rows_affected())
+}
+
+#[derive(Debug)]
+pub enum RotateTokenOutcome {
+    Success(RefreshToken),
+    AlreadyRevoked(Uuid),
+    Expired,
+    NotFound,
+}
+
+pub async fn rotate_refresh_token_cas(
+    pool: &PgPool,
+    token_hash: &str,
+) -> Result<RotateTokenOutcome, AppError> {
+    // Attempt atomic CAS update to revoke the active token
+    let updated = sqlx::query_as::<_, RefreshToken>(
+        r#"
+        UPDATE refresh_tokens
+        SET revoked = true
+        WHERE token_hash = $1 AND revoked = false
+        RETURNING id, user_id, token_hash, expires_at, revoked, created_at
+        "#,
+    )
+    .bind(token_hash)
+    .fetch_optional(pool)
+    .await?;
+
+    if let Some(rt) = updated {
+        if rt.expires_at < Utc::now() {
+            return Ok(RotateTokenOutcome::Expired);
+        }
+        return Ok(RotateTokenOutcome::Success(rt));
+    }
+
+    // No row was updated. Check whether the token exists but was already revoked (theft/replay detection)
+    if let Some(existing) = find_refresh_token(pool, token_hash).await? {
+        if existing.revoked {
+            return Ok(RotateTokenOutcome::AlreadyRevoked(existing.user_id));
+        }
+    }
+
+    Ok(RotateTokenOutcome::NotFound)
+}
+
+pub async fn cleanup_expired_refresh_tokens(pool: &PgPool) -> Result<u64, AppError> {
+    let result = sqlx::query(
+        r#"
+        DELETE FROM refresh_tokens
+        WHERE expires_at < now() - INTERVAL '7 days'
+           OR (revoked = true AND created_at < now() - INTERVAL '7 days')
+        "#,
+    )
     .execute(pool)
     .await?;
 

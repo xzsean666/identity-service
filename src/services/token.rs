@@ -64,6 +64,10 @@ impl JwtEngine {
             let content = fs::read_to_string(path)
                 .map_err(|e| AppError::Config(format!("Failed to read private key at {path}: {e}")))?;
             Self::load_from_pem_str(&content)?
+        } else if config.env.is_production() {
+            return Err(AppError::Config(
+                "In production environment, JWT_PRIVATE_KEY_PEM or JWT_PRIVATE_KEY_PATH is strictly required. Ephemeral keys are forbidden in production to prevent key desynchronization across restarts and replicas.".to_string(),
+            ));
         } else {
             tracing::info!("No Ed25519 private key configured; generating ephemeral key for development");
             SigningKey::generate(&mut OsRng)

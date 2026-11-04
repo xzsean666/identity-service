@@ -1,11 +1,12 @@
 use crate::api::auth::ExchangeRequest;
-use crate::api::middleware::AuthenticatedUser;
+use crate::api::middleware::{AuthenticatedUser, OptionalAuthUser};
 use crate::error::AppError;
-use crate::models::{Identity, UpdateUserDto, UserResponse};
+use crate::models::{Identity, PublicUserResponse, UpdateUserDto, UserResponse};
 use crate::services::{IdentityService, UserService};
 use crate::state::AppState;
 use axum::{
     extract::{Path, State},
+    response::{IntoResponse, Response},
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -52,12 +53,18 @@ pub async fn update_me(
 
 pub async fn get_user_by_id(
     State(state): State<AppState>,
+    auth: OptionalAuthUser,
     Path(id): Path<Uuid>,
-) -> Result<Json<UserResponse>, AppError> {
+) -> Result<Response, AppError> {
     let user_service = UserService::new(state.pool.clone());
     let user = user_service.get_user_by_id(id).await?;
 
-    Ok(Json(user.into()))
+    let is_owner = auth.0.as_ref().map(|a| a.user_id) == Some(id);
+    if is_owner {
+        Ok(Json(UserResponse::from(user)).into_response())
+    } else {
+        Ok(Json(PublicUserResponse::from(user)).into_response())
+    }
 }
 
 pub async fn link_identity(

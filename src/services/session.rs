@@ -1,7 +1,7 @@
 use crate::config::Config;
 use crate::db::{
-    find_refresh_token, find_user_by_id, revoke_all_user_refresh_tokens, revoke_refresh_token,
-    save_refresh_token,
+    find_user_by_id, revoke_all_user_refresh_tokens, revoke_refresh_token,
+    rotate_refresh_token_cas, save_refresh_token, RotateTokenOutcome,
 };
 use crate::error::AppError;
 use crate::services::token::JwtEngine;
@@ -76,17 +76,25 @@ impl SessionService {
     pub async fn refresh_tokens(&self, raw_refresh_token: &str) -> Result<TokenPair, AppError> {
         let token_hash = Self::hash_token(raw_refresh_token);
 
-        let stored_token = find_refresh_token(&self.pool, &token_hash)
-            .await?
-            .ok_or_else(|| AppError::Unauthorized("Invalid refresh token".to_string()))?;
-
-        if stored_token.revoked {
-            return Err(AppError::Unauthorized("Refresh token has been revoked".to_string()));
-        }
-
-        if stored_token.expires_at < Utc::now() {
-            return Err(AppError::Unauthorized("Refresh token has expired".to_string()));
-        }
+        let stored_token = match rotate_refresh_token_cas(&self.pool, &token_hash).await? {
+            RotateTokenOutcome::Success(rt) => rt,
+            RotateTokenOutcome::AlreadyRevoked(user_id) => {
+                tracing::warn!(
+                    user_id = %user_id,
+                    "SECURITY ALERT: Refresh token reuse detected! Invalidating all active sessions for user"
+                );
+                revoke_all_user_refresh_tokens(&self.pool, user_id).await?;
+                return Err(AppError::Unauthorized(
+                    "Refresh token reuse detected: token has already been revoked. All active sessions have been invalidated for security.".to_string(),
+                ));
+            }
+            RotateTokenOutcome::Expired => {
+                return Err(AppError::Unauthorized("Refresh token has expired".to_string()));
+            }
+            RotateTokenOutcome::NotFound => {
+                return Err(AppError::Unauthorized("Invalid refresh token".to_string()));
+            }
+        };
 
         let user = find_user_by_id(&self.pool, stored_token.user_id)
             .await?
@@ -98,9 +106,6 @@ impl SessionService {
                 user.status
             )));
         }
-
-        // Revoke the old refresh token (rotation)
-        revoke_refresh_token(&self.pool, &token_hash).await?;
 
         // Issue new token pair
         self.issue_tokens(user.id, user.email).await

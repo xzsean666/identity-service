@@ -1,7 +1,7 @@
 use identity_service::{
     api::create_router,
     config::Config,
-    db::{init_pool, run_migrations},
+    db::run_migrations,
     providers::ProviderRegistry,
     services::token::JwtEngine,
     AppState,
@@ -53,8 +53,31 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.port,
     );
 
-    let pool = init_pool(&config.database_url).await?;
+    let pool = identity_service::db::init_pool_with_options(
+        &config.database_url,
+        config.database_max_connections,
+        config.database_min_connections,
+    )
+    .await?;
     run_migrations(&pool).await?;
+
+    // Background maintenance worker: periodically cleans up expired/revoked refresh tokens
+    let cleanup_pool = pool.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_secs(6 * 3600));
+        loop {
+            interval.tick().await;
+            match identity_service::db::cleanup_expired_refresh_tokens(&cleanup_pool).await {
+                Ok(count) if count > 0 => {
+                    tracing::info!(cleaned_tokens = count, "Cleaned up expired refresh tokens");
+                }
+                Ok(_) => {}
+                Err(err) => {
+                    tracing::warn!(error = %err, "Failed to clean up expired refresh tokens");
+                }
+            }
+        }
+    });
 
     let jwt_engine = JwtEngine::new(&config)?;
     let providers = ProviderRegistry::from_config(&config);

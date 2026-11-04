@@ -22,10 +22,11 @@ pub struct GoogleProvider {
     client: Client,
     client_id: Option<String>,
     tokeninfo_url: String,
+    is_production: bool,
 }
 
 impl GoogleProvider {
-    pub fn new(client_id: Option<String>) -> Self {
+    pub fn new(client_id: Option<String>, is_production: bool) -> Self {
         let client = Client::builder()
             .timeout(Duration::from_secs(5))
             .build()
@@ -35,6 +36,7 @@ impl GoogleProvider {
             client,
             client_id,
             tokeninfo_url: "https://oauth2.googleapis.com/tokeninfo".to_string(),
+            is_production,
         }
     }
 
@@ -52,6 +54,13 @@ impl ProviderVerifier for GoogleProvider {
 
     fn verify<'a>(&'a self, token: &'a str) -> BoxFuture<'a, Result<ExternalIdentity, AppError>> {
         Box::pin(async move {
+            if self.is_production && self.client_id.is_none() {
+                return Err(AppError::Config(
+                    "GOOGLE_CLIENT_ID must be configured in production to verify Google tokens"
+                        .to_string(),
+                ));
+            }
+
             let res = self
                 .client
                 .get(&self.tokeninfo_url)
@@ -81,12 +90,33 @@ impl ProviderVerifier for GoogleProvider {
                 .ok_or_else(|| AppError::Unauthorized("Missing 'sub' in Google token".to_string()))?;
 
             if let Some(ref expected_aud) = self.client_id {
-                if let Some(ref aud) = info.aud {
-                    if aud != expected_aud {
+                match info.aud {
+                    Some(ref aud) if aud == expected_aud => {},
+                    Some(ref aud) => {
                         return Err(AppError::Unauthorized(format!(
                             "Google token audience mismatch: expected '{expected_aud}', got '{aud}'"
                         )));
                     }
+                    None => {
+                        return Err(AppError::Unauthorized(
+                            "Missing 'aud' claim in Google token".to_string(),
+                        ));
+                    }
+                }
+            }
+
+            // Verify email is verified if email is present
+            if info.email.is_some() {
+                let is_verified = match &info.email_verified {
+                    Some(serde_json::Value::Bool(b)) => *b,
+                    Some(serde_json::Value::String(s)) => s == "true" || s == "1",
+                    None => false,
+                    _ => false,
+                };
+                if !is_verified && self.is_production {
+                    return Err(AppError::Unauthorized(
+                        "Google email address is not verified".to_string(),
+                    ));
                 }
             }
 
