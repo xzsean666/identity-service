@@ -1,0 +1,1 @@
+../../../docs/AI/SKILL.md
