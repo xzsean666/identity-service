@@ -1,48 +1,49 @@
 services:
-  postgres:
-    image: postgres:16-alpine
-    container_name: identity-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgrespassword
-      POSTGRES_DB: identity
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d identity"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   identity-service:
     build:
       context: .
       dockerfile: Dockerfile
+    image: identity-service:latest
     container_name: identity-service
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
     ports:
-      - "8080:8080"
+      - "${APP_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
     environment:
-      APP_ENV: production
+      APP_ENV: ${APP_ENV:-production}
       APP_HOST: 0.0.0.0
       APP_PORT: 8080
-      DATABASE_URL: postgres://postgres:postgrespassword@postgres:5432/identity
-      JWT_ISSUER: identity-service
-      JWT_AUDIENCE: backend-services
-      JWT_KEY_ID: key-1
-      JWT_ACCESS_TOKEN_TTL_SECONDS: 3600
-      JWT_REFRESH_TOKEN_TTL_SECONDS: 2592000
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be configured}
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS:-20}
+      DATABASE_MIN_CONNECTIONS: ${DATABASE_MIN_CONNECTIONS:-5}
+      JWT_ISSUER: ${JWT_ISSUER:-identity-service}
+      JWT_AUDIENCE: ${JWT_AUDIENCE:-backend-services}
+      JWT_KEY_ID: ${JWT_KEY_ID:-key-1}
+      JWT_ACCESS_TOKEN_TTL_SECONDS: ${JWT_ACCESS_TOKEN_TTL_SECONDS:-3600}
+      JWT_REFRESH_TOKEN_TTL_SECONDS: ${JWT_REFRESH_TOKEN_TTL_SECONDS:-2592000}
+      JWT_PRIVATE_KEY_PATH: ${JWT_PRIVATE_KEY_PATH:-}
+      JWT_PRIVATE_KEY_PEM: ${JWT_PRIVATE_KEY_PEM:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      X_CLIENT_ID: ${X_CLIENT_ID:-}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_JWT_SECRET: ${SUPABASE_JWT_SECRET:-}
+      RUST_LOG: ${RUST_LOG:-identity_service=info,tower_http=info}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/healthz"]
-      interval: 10s
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/healthz"]
+      interval: 15s
       timeout: 3s
+      start_period: 5s
       retries: 3
-
-volumes:
-  postgres_data:
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1G
+        reservations:
+          memory: 128M

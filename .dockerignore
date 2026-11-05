@@ -1,0 +1,33 @@
+# Version control
+.git/
+.gitignore
+
+# Target and local build artifacts (crucial: target/ is multi-GB)
+target/
+
+# Documentation and AI files
+docs/
+.agents/
+*.md
+
+# Environment and sensitive secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# IDE and Editor configurations
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Docker / Deployment files
+Dockerfile
+.dockerignore
+docker-compose*.yml
+
+# System generated and temporary files
+.system_generated/
+tmp/
